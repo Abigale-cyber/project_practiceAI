@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { questionApi } from '../../api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Question {
   id: number;
@@ -46,13 +47,22 @@ export default function AdminQuestions() {
     loadQuestions();
   }, [selectedCategory, selectedType, searchQuery]);
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
   const handleDelete = async (id: number) => {
+    setConfirmDeleteId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
     try {
-      await questionApi.delete(id);
-      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      await questionApi.delete(confirmDeleteId);
+      setQuestions((prev) => prev.filter((q) => q.id !== confirmDeleteId));
       toast.success('题目已删除');
     } catch (err: any) {
       toast.error(err.message || '删除失败');
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -424,6 +434,17 @@ export default function AdminQuestions() {
         )}
 
         {isModalOpen && <AddQuestionModal />}
+
+        {/* 删除确认弹窗 */}
+        <ConfirmDialog
+          open={!!confirmDeleteId}
+          title="删除题目"
+          message="确定删除该题目？删除后无法恢复。"
+          confirmLabel="删除"
+          cancelLabel="取消"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       </div>
     </div>
   );

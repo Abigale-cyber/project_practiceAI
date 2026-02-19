@@ -217,34 +217,81 @@ def split_by_heading(text: str, level: int = 1) -> List[str]:
 def split_by_qa(text: str) -> List[str]:
     """
     策略4: 问答对分块
-    自动识别 Q/A、问/答、Q:、A: 等模式，每对 QA 为一个 chunk。
+    自动识别多种 Q/A 结构，每对 QA 为一个 chunk。
+
+    支持的格式：
+    - ### 1、问题？  （数字编号标题，最常见）
+    - ## 1. 问题
+    - Q: ... A: ...
+    - 问：... 答：...
+    - 1、问题？  2、问题？
+    - 【问题】...【回答思路】...
     """
     if not text or not text.strip():
         return []
 
-    # 匹配多种 QA 模式
-    qa_patterns = [
-        r'(?:^|\n)\s*(?:Q|问|问题|Question)\s*[:：\d.、]\s*',
-        r'(?:^|\n)\s*\d+\s*[.、)\]]\s*(?:问|Q)',
-    ]
-
-    # 尝试用 Q 开头拆分
-    combined_pattern = r'(?:^|\n)\s*(?:Q|问|问题|Question)\s*[:：\d.、]*\s*'
-    parts = re.split(combined_pattern, text, flags=re.IGNORECASE)
-
-    # 过滤空块和太短的
+    lines = text.split('\n')
     chunks = []
-    for part in parts:
-        part = part.strip()
-        if part and len(part) >= 10:
-            chunks.append(part)
 
-    # 如果没有成功拆分出 QA 对，退化为自动分块
-    if len(chunks) <= 1:
-        logger.info("未检测到 QA 结构，退化为自动段落分块")
-        return split_auto(text)
+    # ---------- 策略 A：按带数字编号的标题行拆分 ----------
+    # 匹配 ### 1、  ### 2.  ## 1、  # 1.  等
+    heading_number_pattern = re.compile(
+        r'^#{1,4}\s*(\d+)\s*[、.．)\]）】]\s*'
+    )
+    # 也匹配纯数字编号行：1、问题  1. 问题  (1) 问题
+    plain_number_pattern = re.compile(
+        r'^(\d+)\s*[、.．)\]）】]\s*\S'
+    )
 
-    return chunks
+    # 先检测是否存在带数字的标题行
+    heading_indices = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if heading_number_pattern.match(stripped) or plain_number_pattern.match(stripped):
+            heading_indices.append(i)
+
+    if len(heading_indices) >= 2:
+        # 按标题行拆分，每个标题 + 其下内容为一个 chunk
+        for idx, start in enumerate(heading_indices):
+            end = heading_indices[idx + 1] if idx + 1 < len(heading_indices) else len(lines)
+            chunk_text = '\n'.join(lines[start:end]).strip()
+            if chunk_text and len(chunk_text) >= 10:
+                chunks.append(chunk_text)
+
+        if chunks:
+            # 如果标题行之前有内容（如文档标题/说明），也保留
+            if heading_indices[0] > 0:
+                preamble = '\n'.join(lines[:heading_indices[0]]).strip()
+                if preamble and len(preamble) >= 10:
+                    chunks.insert(0, preamble)
+            logger.info(f"QA 分块：按数字编号标题拆分，共 {len(chunks)} 个块")
+            return chunks
+
+    # ---------- 策略 B：按 Q/A 或 问/答 配对拆分 ----------
+    qa_start_pattern = re.compile(
+        r'^(?:Q|问|问题|Question)\s*[:：\d.、]*\s*',
+        re.IGNORECASE
+    )
+
+    qa_indices = []
+    for i, line in enumerate(lines):
+        if qa_start_pattern.match(line.strip()):
+            qa_indices.append(i)
+
+    if len(qa_indices) >= 2:
+        for idx, start in enumerate(qa_indices):
+            end = qa_indices[idx + 1] if idx + 1 < len(qa_indices) else len(lines)
+            chunk_text = '\n'.join(lines[start:end]).strip()
+            if chunk_text and len(chunk_text) >= 10:
+                chunks.append(chunk_text)
+
+        if chunks:
+            logger.info(f"QA 分块：按 Q/问 标记拆分，共 {len(chunks)} 个块")
+            return chunks
+
+    # ---------- 策略 C：退化为自动分块 ----------
+    logger.info("未检测到 QA 结构，退化为自动段落分块")
+    return split_auto(text)
 
 
 def split_by_page(file_path: str, file_type: str) -> List[str]:

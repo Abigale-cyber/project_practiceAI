@@ -16,7 +16,7 @@ export default function AdminLayout() {
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm sticky top-0 h-screen flex-shrink-0">
         <div className="p-6 border-b border-gray-200">
           <h1 className="font-semibold text-lg">AI 演练工具</h1>
-          <p className="text-sm text-gray-500 mt-1">管理端</p>
+          <p className="text-sm text-gray-500 mt-1">教师端</p>
         </div>
         <nav className="flex-1 p-4">
           {navItems.map((item) => {

@@ -26,6 +26,38 @@ def _strip_think_tags(text: str) -> str:
     return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
 
+def chat_simple(prompt: str, system_prompt: str = None) -> str:
+    """非流式调用大模型，直接返回文本结果"""
+    try:
+        client = get_llm_client()
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+            max_tokens=100,
+        )
+        text = response.choices[0].message.content or ""
+        return _strip_think_tags(text).strip().strip('"').strip("'")
+    except Exception as e:
+        logger.error(f"chat_simple 调用失败: {e}")
+        return ""
+
+
+def generate_session_title(user_message: str) -> str:
+    """根据用户第一条消息，提取简短会话标题（不使用LLM，避免推理泄露）"""
+    msg = user_message.strip()
+    # 去掉冗余前缀（保留核心问句）
+    msg = re.sub(r'^(请问一下|请问|请教|帮我看看|帮我|告诉我|解释一下|介绍一下|说说|讲讲|谈谈|我想了解|我想知道)', '', msg).strip()
+    # 去掉末尾标点
+    msg = re.sub(r'[？?！!。.…]+$', '', msg).strip()
+    # 取前12个字，保持有意义的短语
+    title = msg[:12] if msg else user_message[:12]
+    return title
+
+
 def chat_stream(messages: list[dict], system_prompt: str = None):
     """
     流式调用大模型，返回生成器。

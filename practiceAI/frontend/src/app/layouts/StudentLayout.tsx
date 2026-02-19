@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
-import { MessageSquare, BookOpen, History, Home } from 'lucide-react';
+import { MessageSquare, BookOpen, History, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 export default function StudentLayout() {
   const location = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
 
   const navItems = [
     { path: '/', label: '学习看板', icon: Home },
@@ -14,12 +16,23 @@ export default function StudentLayout() {
   return (
     <div className="size-full flex flex-col md:flex-row bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex md:w-64 bg-white border-r border-gray-200 flex-col shadow-sm sticky top-0 h-screen flex-shrink-0">
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="font-semibold text-lg">AI 演练工具</h1>
-          <p className="text-sm text-gray-500 mt-1">学员端</p>
+      <aside className={`hidden md:flex ${collapsed ? 'md:w-16' : 'md:w-48'} bg-white border-r border-gray-200 flex-col shadow-sm sticky top-0 h-screen flex-shrink-0 transition-all duration-200`}>
+        <div className={`border-b border-gray-200 flex items-center ${collapsed ? 'p-3 justify-center' : 'p-5 justify-between'}`}>
+          {!collapsed && (
+            <div>
+              <h1 className="font-semibold text-base">AI 演练工具</h1>
+              <p className="text-xs text-gray-500 mt-0.5">学员端</p>
+            </div>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            title={collapsed ? '展开菜单' : '收起菜单'}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
         </div>
-        <nav className="flex-1 p-4">
+        <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-3'}`}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -27,23 +40,25 @@ export default function StudentLayout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${isActive
+                title={collapsed ? item.label : undefined}
+                className={`flex items-center gap-3 ${collapsed ? 'justify-center px-2' : 'px-3'} py-2.5 rounded-lg mb-1 transition-colors ${isActive
                   ? 'text-[#00B894] bg-[#00B894]/10'
                   : 'text-gray-600 hover:bg-gray-50'
                   }`}
               >
-                <Icon className="size-5" />
-                <span className="text-sm">{item.label}</span>
+                <Icon className="size-5 flex-none" />
+                {!collapsed && <span className="text-sm">{item.label}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="p-4 border-t border-gray-200">
+        <div className={`border-t border-gray-200 ${collapsed ? 'p-2' : 'p-3'}`}>
           <Link
             to="/admin"
-            className="block text-center px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+            title={collapsed ? '教师端入口' : undefined}
+            className={`block text-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors ${collapsed ? 'text-xs' : ''}`}
           >
-            管理端入口
+            {collapsed ? '🎓' : '教师端入口'}
           </Link>
         </div>
       </aside>

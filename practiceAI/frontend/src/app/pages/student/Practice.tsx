@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, XCircle, BookOpen, ChevronRight, RotateCcw, Loader2, Star, Gamepad2, Zap, Trophy, Target } from 'lucide-react';
 import { toast } from 'sonner';
-import { practiceApi, settingsApi } from '../../api';
+import { practiceApi } from '../../api';
 
 interface Question {
   id: number;
@@ -16,16 +16,19 @@ interface Question {
 }
 
 interface QuizTopic {
-  name: string;
-  knowledge_base: string;
+  id: number;
+  topic_name: string;
+  knowledge_base_name: string;
   question_count: number;
+  difficulty: string;
 }
 
 export default function StudentPractice() {
   const [step, setStep] = useState<'select' | 'practice' | 'result'>('select');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [starting, setStarting] = useState(false);
+  const [startingRequired, setStartingRequired] = useState(false);
+  const [startingFree, setStartingFree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -47,14 +50,12 @@ export default function StudentPractice() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [kbs, settingsData] = await Promise.all([
+        const [kbs, qSets] = await Promise.all([
           practiceApi.getKnowledgeBases(),
-          settingsApi.get().catch(() => null),
+          practiceApi.getQuestionSets().catch(() => []),
         ]);
         setKnowledgeBases(kbs);
-        if (settingsData?.quiz_topics) {
-          setQuizTopics(settingsData.quiz_topics);
-        }
+        setQuizTopics(qSets || []);
       } catch {
         setKnowledgeBases([{ id: 'default', name: '默认知识库' }]);
       } finally {
@@ -68,15 +69,12 @@ export default function StudentPractice() {
     return knowledgeBases.find((kb) => kb.id === id)?.name || id;
   };
 
-  // 必修闯关 - 启动指定主题
+  // 必修闯关 - 从教师预生成题库启动（不调用 LLM，瞬间开始）
   const startRequiredPractice = async (topic: QuizTopic) => {
-    setStarting(true);
+    setStartingRequired(true);
     setPracticeSource('required');
     try {
-      const session = await practiceApi.startSession({
-        knowledge_base: topic.knowledge_base,
-        question_count: topic.question_count,
-      });
+      const session = await practiceApi.startFromSet(topic.id);
       setSessionId(session.session_id);
       const qs: Question[] = (session.questions || []).map((q: any) => ({
         id: q.id,
@@ -93,13 +91,13 @@ export default function StudentPractice() {
     } catch (err: any) {
       toast.error(err.message || '开始练习失败');
     } finally {
-      setStarting(false);
+      setStartingRequired(false);
     }
   };
 
   // 自由刷题 - 启动
   const startFreePractice = async () => {
-    setStarting(true);
+    setStartingFree(true);
     setPracticeSource('free');
     try {
       const session = await practiceApi.startSession({
@@ -123,7 +121,7 @@ export default function StudentPractice() {
     } catch (err: any) {
       toast.error(err.message || '开始练习失败');
     } finally {
-      setStarting(false);
+      setStartingFree(false);
     }
   };
 
@@ -220,7 +218,7 @@ export default function StudentPractice() {
               <div className="bg-card rounded-xl border border-border p-8 text-center">
                 <Trophy className="size-10 mx-auto mb-3 text-muted-foreground/40" />
                 <p className="text-muted-foreground text-sm">暂无必修闯关</p>
-                <p className="text-muted-foreground/60 text-xs mt-1">管理员尚未配置必修主题</p>
+                <p className="text-muted-foreground/60 text-xs mt-1">教师尚未配置必修主题</p>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
@@ -239,7 +237,7 @@ export default function StudentPractice() {
                           </div>
                           <div>
                             <h3 className="font-semibold text-foreground">
-                              {topic.name || `主题 ${index + 1}`}
+                              {topic.topic_name || `主题 ${index + 1}`}
                             </h3>
                           </div>
                         </div>
@@ -251,20 +249,20 @@ export default function StudentPractice() {
 
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
                         <BookOpen className="size-3.5" />
-                        <span>知识库: {getKBName(topic.knowledge_base)}</span>
+                        <span>知识库: {topic.knowledge_base_name || '全部知识库'}</span>
                       </div>
 
                       <button
                         onClick={() => startRequiredPractice(topic)}
-                        disabled={starting}
+                        disabled={startingRequired}
                         className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                       >
-                        {starting ? (
+                        {startingRequired ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
                           <Target className="size-4" />
                         )}
-                        {starting ? '加载中...' : '开始闯关'}
+                        {startingRequired ? '加载中...' : '开始闯关'}
                       </button>
                     </div>
                   </div>
@@ -291,8 +289,8 @@ export default function StudentPractice() {
                       key={kb.id}
                       onClick={() => setFreeKnowledge(kb.id)}
                       className={`p-3 rounded-lg border-2 text-left transition-all text-sm ${freeKnowledge === kb.id
-                          ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-border hover:border-muted-foreground text-foreground'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border hover:border-muted-foreground text-foreground'
                         }`}
                     >
                       {kb.name}
@@ -315,8 +313,8 @@ export default function StudentPractice() {
                         key={type.id}
                         onClick={() => setFreeType(type.id)}
                         className={`flex-1 px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${freeType === type.id
-                            ? 'border-primary text-primary bg-primary/5'
-                            : 'border-border text-foreground hover:border-muted-foreground'
+                          ? 'border-primary text-primary bg-primary/5'
+                          : 'border-border text-foreground hover:border-muted-foreground'
                           }`}
                       >
                         {type.label}
@@ -345,16 +343,16 @@ export default function StudentPractice() {
               {/* 开始按钮 */}
               <button
                 onClick={startFreePractice}
-                disabled={!freeKnowledge || starting}
+                disabled={!freeKnowledge || startingFree}
                 className="w-full py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm font-medium"
               >
-                {starting ? (
+                {startingFree ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Gamepad2 className="size-4" />
                 )}
-                {starting ? '生成题目中...' : '开始刷题'}
-                {!starting && <ChevronRight className="size-4" />}
+                {startingFree ? '生成题目中...' : '开始刷题'}
+                {!startingFree && <ChevronRight className="size-4" />}
               </button>
             </div>
           </div>
@@ -376,8 +374,8 @@ export default function StudentPractice() {
               </span>
               <div className="flex items-center gap-2">
                 <span className={`text-xs px-2.5 py-1 rounded-full ${practiceSource === 'required'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
                   }`}>
                   {practiceSource === 'required' ? '⭐ 必修闯关' : '🎮 自由刷题'}
                 </span>

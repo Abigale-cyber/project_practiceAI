@@ -58,6 +58,106 @@ async def get_knowledge_bases(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/question-sets")
+async def get_student_question_sets(db: Session = Depends(get_db)):
+    """获取教师已配置好的题目集（必修闯关用）—— 只返回 ready 状态的"""
+    from models.question import QuestionSet, Question as QuestionModel
+    try:
+        sets = db.query(QuestionSet).filter(
+            QuestionSet.status == "ready",
+            QuestionSet.is_active == True,
+        ).order_by(QuestionSet.created_at.desc()).all()
+
+        result = []
+        for s in sets:
+            q_count = db.query(QuestionModel).filter(QuestionModel.set_id == s.id).count()
+            result.append({
+                "id": s.id,
+                "topic_name": s.topic_name,
+                "knowledge_base_name": s.knowledge_base_name,
+                "question_count": q_count,
+                "difficulty": s.difficulty,
+            })
+        return result
+    except Exception as e:
+        logger.error(f"获取学生题目集失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sessions/from-set/{set_id}")
+async def start_practice_from_set(
+    set_id: int,
+    db: Session = Depends(get_db),
+):
+    """从教师预生成的题目集开始练习（必修闯关）—— 不调用 LLM，直接使用已存好的题目"""
+    from models.question import QuestionSet, Question as QuestionModel
+    try:
+        qs = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
+        if not qs:
+            raise HTTPException(status_code=404, detail="题目集不存在")
+        if qs.status != "ready":
+            raise HTTPException(status_code=400, detail="题目集尚未就绪")
+
+        # 取出预存的题目
+        stored_questions = db.query(QuestionModel).filter(
+            QuestionModel.set_id == set_id
+        ).order_by(QuestionModel.sort_order).all()
+
+        if not stored_questions:
+            raise HTTPException(status_code=400, detail="该题目集暂无题目")
+
+        # 创建练习会话
+        session = PracticeSession(
+            user_id=TEST_USER_ID,
+            knowledge_base=qs.knowledge_base_id or "all",
+            question_type="all",
+            total_questions=len(stored_questions),
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+        # 用预存题目填充 PracticeAnswer 占位
+        questions_data = []
+        for i, sq in enumerate(stored_questions):
+            q_id = i + 1
+            questions_data.append({
+                "id": q_id,
+                "type": sq.question_type,
+                "question": sq.content,
+                "options": sq.options,
+            })
+            answer_placeholder = PracticeAnswer(
+                session_id=session.id,
+                question_id=q_id,
+                user_answer="",
+                is_correct=None,
+                ai_feedback=json.dumps({
+                    "correct_answer": sq.answer,
+                    "explanation": sq.explanation or "",
+                    "type": sq.question_type,
+                    "question": sq.content,
+                }, ensure_ascii=False),
+            )
+            db.add(answer_placeholder)
+
+        db.commit()
+
+        logger.info(f"必修闯关开始: session={session.id}, set={set_id}, questions={len(questions_data)}")
+
+        return {
+            "session_id": session.id,
+            "questions": questions_data,
+            "total_questions": len(questions_data),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"必修闯关失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/sessions")
 async def start_practice(
     data: StartPracticeRequest = Body(...),

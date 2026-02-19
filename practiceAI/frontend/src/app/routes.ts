@@ -7,6 +7,7 @@ import StudentPractice from "./pages/student/Practice";
 import StudentHistory from "./pages/student/History";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminKnowledge from "./pages/admin/Knowledge";
+import DocumentChunks from "./pages/admin/DocumentChunks";
 import AdminSettings from "./pages/admin/Settings";
 import Login from "./pages/Login";
 
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: AdminDashboard },
       { path: "knowledge", Component: AdminKnowledge },
+      { path: "knowledge/:documentId/chunks", Component: DocumentChunks },
       { path: "settings", Component: AdminSettings },
     ],
   },

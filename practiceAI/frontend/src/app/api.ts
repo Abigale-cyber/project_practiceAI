@@ -112,12 +112,67 @@ export const knowledgeApi = {
         request(`/api/admin/knowledge/documents/${id}`, { method: 'DELETE' }),
 
     getStats: () => request('/api/admin/knowledge/stats'),
+
+    getDocumentChunks: (documentId: number) =>
+        request<any>(`/api/admin/knowledge/documents/${documentId}/chunks`),
+
+    updateChunk: (chunkId: number, content: string) =>
+        request<any>(`/api/admin/knowledge/chunks/${chunkId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ content }),
+        }),
+};
+
+// ===== 题目集 API =====
+export const questionSetApi = {
+    listSets: () => request<any[]>('/api/admin/questions/sets'),
+
+    createSet: (data: any) =>
+        request<any>('/api/admin/questions/sets', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    getSet: (setId: number) => request<any>(`/api/admin/questions/sets/${setId}`),
+
+    updateSet: (setId: number, data: any) =>
+        request<any>(`/api/admin/questions/sets/${setId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+
+    deleteSet: (setId: number) =>
+        request(`/api/admin/questions/sets/${setId}`, { method: 'DELETE' }),
+
+    regenerate: (setId: number) =>
+        request<any>(`/api/admin/questions/sets/${setId}/regenerate`, { method: 'POST' }),
+
+    addQuestion: (setId: number, data: any) =>
+        request<any>(`/api/admin/questions/sets/${setId}/questions`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    updateQuestion: (questionId: number, data: any) =>
+        request<any>(`/api/admin/questions/questions/${questionId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+
+    deleteQuestion: (questionId: number) =>
+        request(`/api/admin/questions/questions/${questionId}`, { method: 'DELETE' }),
 };
 
 // ===== 练习 API =====
 export const practiceApi = {
     getKnowledgeBases: () =>
         request<{ id: string; name: string }[]>('/api/practice/knowledge-bases'),
+
+    getQuestionSets: () =>
+        request<any[]>('/api/practice/question-sets'),
+
+    startFromSet: (setId: number) =>
+        request<any>(`/api/practice/sessions/from-set/${setId}`, { method: 'POST' }),
 
     startSession: (data: {
         knowledge_base?: string;
@@ -154,11 +209,32 @@ export const chatApi = {
     getMessages: (sessionId: string) =>
         request<any[]>(`/api/chat/sessions/${sessionId}/messages`),
 
-    sendMessage: async function* (sessionId: string, message: string, documentIds?: number[]) {
+    renameSession: (sessionId: string, title: string) =>
+        request(`/api/chat/sessions/${sessionId}/title`, {
+            method: 'PUT',
+            body: JSON.stringify({ title }),
+        }),
+
+    deleteSession: (sessionId: string) =>
+        request(`/api/chat/sessions/${sessionId}`, { method: 'DELETE' }),
+
+    parseFile: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return requestUpload<{ filename: string; text: string; char_count: number }>('/api/chat/parse-file', formData);
+    },
+
+    sendMessage: async function* (sessionId: string, message: string, documentIds?: number[], signal?: AbortSignal, fileContext?: string, attachedDocs?: string[]) {
         const token = getToken();
         const body: any = { message };
         if (documentIds && documentIds.length > 0) {
             body.document_ids = documentIds;
+        }
+        if (fileContext) {
+            body.file_context = fileContext;
+        }
+        if (attachedDocs && attachedDocs.length > 0) {
+            body.attached_docs = attachedDocs;
         }
         const res = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`, {
             method: 'POST',
@@ -167,6 +243,7 @@ export const chatApi = {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(body),
+            signal,
         });
 
         if (!res.ok) throw new Error('发送消息失败');

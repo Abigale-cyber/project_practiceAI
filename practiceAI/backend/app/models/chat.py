@@ -21,4 +21,5 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)
     citations = Column(JSON)
     suggested_questions = Column(JSON)
+    attached_docs = Column(JSON)  # 附件文档名列表（知识库引用+临时上传）
     created_at = Column(DateTime, server_default=func.now())

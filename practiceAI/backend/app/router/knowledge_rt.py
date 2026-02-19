@@ -221,6 +221,98 @@ async def delete_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/documents/{document_id}/chunks")
+async def get_document_chunks(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    """获取指定文档的分块详情"""
+    try:
+        document = db.query(KnowledgeDocument).filter(
+            KnowledgeDocument.id == document_id
+        ).first()
+        if not document:
+            raise HTTPException(status_code=404, detail="文档不存在")
+
+        chunks = db.query(KnowledgeChunk).filter(
+            KnowledgeChunk.document_id == document_id
+        ).order_by(KnowledgeChunk.chunk_index).all()
+
+        return {
+            "document": {
+                "id": document.id,
+                "name": document.name,
+                "file_type": document.file_type,
+                "file_size": document.file_size,
+                "status": document.status,
+                "chunk_count": document.chunk_count,
+                "created_at": str(document.created_at) if document.created_at else None,
+            },
+            "chunks": [
+                {
+                    "id": chunk.id,
+                    "chunk_index": chunk.chunk_index,
+                    "content": chunk.content,
+                    "has_embedding": chunk.embedding is not None,
+                    "content_length": len(chunk.content) if chunk.content else 0,
+                }
+                for chunk in chunks
+            ],
+            "total_chunks": len(chunks),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取文档分块失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/chunks/{chunk_id}")
+async def update_chunk(
+    chunk_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+):
+    """更新分块内容，并重新生成 Embedding"""
+    try:
+        chunk = db.query(KnowledgeChunk).filter(KnowledgeChunk.id == chunk_id).first()
+        if not chunk:
+            raise HTTPException(status_code=404, detail="分块不存在")
+
+        new_content = data.get("content", "").strip()
+        if not new_content:
+            raise HTTPException(status_code=400, detail="内容不能为空")
+
+        chunk.content = new_content
+
+        # 重新生成 Embedding
+        try:
+            embeddings = batch_generate_embeddings([new_content])
+            if embeddings and len(embeddings) > 0:
+                chunk.embedding = embeddings[0]
+                logger.info(f"分块 {chunk_id} Embedding 已更新")
+        except Exception as emb_err:
+            logger.warning(f"重新生成 Embedding 失败: {str(emb_err)}")
+            # 即使 embedding 失败也保存文本更新
+
+        db.commit()
+        db.refresh(chunk)
+
+        return {
+            "id": chunk.id,
+            "chunk_index": chunk.chunk_index,
+            "content": chunk.content,
+            "has_embedding": chunk.embedding is not None,
+            "content_length": len(chunk.content),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新分块失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stats", response_model=KnowledgeStatsResponse)
 async def get_knowledge_stats(
     db: Session = Depends(get_db),

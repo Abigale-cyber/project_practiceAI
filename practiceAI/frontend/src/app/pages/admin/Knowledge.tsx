@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Upload, FileText, Trash2, Search, Calendar, CheckCircle2, Loader2, FileUp, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { Upload, FileText, Trash2, Search, Calendar, CheckCircle2, Loader2, FileUp, ChevronDown, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { knowledgeApi } from '../../api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Document {
   id: number;
@@ -23,6 +25,7 @@ const CHUNK_METHODS = [
 ];
 
 export default function AdminKnowledge() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,13 +88,22 @@ export default function AdminKnowledge() {
     setChunkMethod('auto');
   };
 
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
+
   const handleDelete = async (id: number, name: string) => {
+    setConfirmDelete({ id, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
     try {
-      await knowledgeApi.deleteDocument(id);
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
-      toast.success(`已删除文档 "${name}"`);
+      await knowledgeApi.deleteDocument(confirmDelete.id);
+      setDocuments((prev) => prev.filter((d) => d.id !== confirmDelete.id));
+      toast.success(`已删除文档 "${confirmDelete.name}"`);
     } catch (err: any) {
       toast.error(err.message || '删除失败');
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -145,8 +157,8 @@ export default function AdminKnowledge() {
                     key={method.id}
                     onClick={() => setChunkMethod(method.id)}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${chunkMethod === method.id
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-border hover:border-muted-foreground'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border hover:border-muted-foreground'
                       }`}
                   >
                     <div className="font-medium text-sm mb-1 text-foreground">{method.label}</div>
@@ -228,7 +240,12 @@ export default function AdminKnowledge() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
                       <FileText className="size-5 text-muted-foreground flex-none" />
-                      <h3 className="font-medium truncate text-foreground">{doc.name}</h3>
+                      <h3
+                        className="font-medium truncate text-foreground hover:text-primary cursor-pointer transition-colors"
+                        onClick={() => navigate(`/admin/knowledge/${doc.id}/chunks`)}
+                      >
+                        {doc.name}
+                      </h3>
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                       <span className="px-2 py-0.5 bg-muted rounded text-xs">{doc.file_type || 'file'}</span>
@@ -237,8 +254,14 @@ export default function AdminKnowledge() {
                         <Calendar className="size-4" />
                         {doc.created_at}
                       </div>
-                      {doc.chunk_count && doc.chunk_count > 0 && (
-                        <span className="text-xs">{doc.chunk_count} 个切片</span>
+                      {doc.chunk_count != null && doc.chunk_count > 0 && (
+                        <button
+                          onClick={() => navigate(`/admin/knowledge/${doc.id}/chunks`)}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <Eye className="size-3" />
+                          {doc.chunk_count} 个切片
+                        </button>
                       )}
                     </div>
                   </div>
@@ -267,6 +290,17 @@ export default function AdminKnowledge() {
           </div>
         </div>
       </div>
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="删除文档"
+        message={`确定删除文档「${confirmDelete?.name}」？删除后无法恢复。`}
+        confirmLabel="删除"
+        cancelLabel="取消"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }
