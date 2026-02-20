@@ -370,10 +370,12 @@ export default function StudentChat() {
         )
       );
     } catch (error: any) {
-      if (error.name === 'AbortError') {
+      if (error?.name === 'AbortError') {
         // 用户手动停止，不报错
       } else {
-        toast.error(error.message || '发送消息失败');
+        // 安全提取错误信息，避免循环引用导致 JSON.stringify 崩溃
+        const errMsg = typeof error?.message === 'string' ? error.message : '发送消息失败';
+        toast.error(errMsg);
         setMessages((prev) => [
           ...prev,
           {
