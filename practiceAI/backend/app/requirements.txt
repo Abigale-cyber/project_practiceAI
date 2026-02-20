@@ -13,3 +13,6 @@ redis==5.0.1
 sqlalchemy==1.4.53
 openai
 dashscope
+numpy
+python-docx
+PyPDF2

@@ -1,5 +1,5 @@
 // ===== API 配置 =====
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 // ===== Token 管理 =====
 export function getToken(): string | null {
