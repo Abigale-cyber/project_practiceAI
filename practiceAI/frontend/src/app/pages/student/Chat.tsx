@@ -373,9 +373,18 @@ export default function StudentChat() {
       if (error?.name === 'AbortError') {
         // 用户手动停止，不报错
       } else {
-        // 安全提取错误信息，避免循环引用导致 JSON.stringify 崩溃
-        const errMsg = typeof error?.message === 'string' ? error.message : '发送消息失败';
-        toast.error(errMsg);
+        // 安全提取错误信息：强制转 string，防止 sonner 内部 JSON.stringify 触碰循环引用
+        let errMsg = '发送消息失败';
+        try {
+          if (typeof error?.message === 'string' && error.message) {
+            errMsg = error.message;
+          } else if (typeof error === 'string') {
+            errMsg = error;
+          }
+        } catch {
+          // ignore
+        }
+        toast.error(String(errMsg));
         setMessages((prev) => [
           ...prev,
           {
@@ -392,6 +401,7 @@ export default function StudentChat() {
       loadSessions();
     }
   };
+
 
   const handleContinue = () => {
     if (isLoading || !chatSessionId) return;

@@ -254,24 +254,35 @@ export const chatApi = {
         const decoder = new TextDecoder();
         let buffer = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
 
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        yield data;
-                    } catch {
-                        // ignore parse errors
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            yield data;
+                        } catch {
+                            // ignore parse errors
+                        }
                     }
                 }
             }
+        } catch (streamError: any) {
+            // 重新包装流错误，防止 browser 内部 Error（含循环引用）透传到上层
+            const msg = typeof streamError?.message === 'string' ? streamError.message : '流读取失败';
+            if (streamError?.name === 'AbortError') {
+                const abortErr = new Error('AbortError');
+                abortErr.name = 'AbortError';
+                throw abortErr;
+            }
+            throw new Error(String(msg));
         }
     },
 };
