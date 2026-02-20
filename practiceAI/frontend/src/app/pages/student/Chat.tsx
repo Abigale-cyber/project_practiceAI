@@ -48,7 +48,7 @@ export default function StudentChat() {
   // 历史会话
   const [sessions, setSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -521,7 +521,7 @@ export default function StudentChat() {
           {sidebarCollapsed && (
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors md:hidden md:block"
+              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
               title="展开侧边栏"
             >
               <PanelLeftOpen className="size-4" />
@@ -534,7 +534,7 @@ export default function StudentChat() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0 pb-6">
           <div className="max-w-3xl mx-auto space-y-6 pb-4">
             {messages.map((message) => (
               <div
@@ -673,7 +673,7 @@ export default function StudentChat() {
         </div>
 
         {/* Input - fixed at bottom, with extra padding for mobile bottom bar */}
-        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] md:pb-4 z-10 w-full mb-16 md:mb-0 box-border">
+        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] md:pb-4 z-10 w-full box-border">
           <div className="max-w-3xl mx-auto">
             {/* Attached docs & files preview */}
             {(selectedDocs.length > 0 || tempFiles.length > 0) && (
