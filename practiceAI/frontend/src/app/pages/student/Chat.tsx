@@ -373,18 +373,8 @@ export default function StudentChat() {
       if (error?.name === 'AbortError') {
         // 用户手动停止，不报错
       } else {
-        // 安全提取错误信息：强制转 string，防止 sonner 内部 JSON.stringify 触碰循环引用
-        let errMsg = '发送消息失败';
-        try {
-          if (typeof error?.message === 'string' && error.message) {
-            errMsg = error.message;
-          } else if (typeof error === 'string') {
-            errMsg = error;
-          }
-        } catch {
-          // ignore
-        }
-        toast.error(String(errMsg));
+        // 只显示友好提示，避免暴露底层错误（含循环引用的 browser 内部 Error）
+        toast.error('发送消息失败，请稍后重试');
         setMessages((prev) => [
           ...prev,
           {
@@ -439,7 +429,7 @@ export default function StudentChat() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background relative">
+    <div className="flex flex-col h-full bg-background relative overflow-hidden">
       {/* 历史会话侧边栏 */}
       {!sidebarCollapsed && (
         <div className="absolute inset-y-0 left-0 z-10 w-64 md:relative border-r border-border bg-card flex flex-col h-full shadow-lg md:shadow-none">
@@ -525,7 +515,7 @@ export default function StudentChat() {
       )}
 
       {/* 主聊天区 */}
-      <div className="flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
         {/* Header */}
         <div className="flex-none px-4 md:px-6 py-3 border-b border-border bg-card flex items-center gap-3">
           {sidebarCollapsed && (
@@ -544,7 +534,7 @@ export default function StudentChat() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0 pb-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0 pb-32">
           <div className="max-w-3xl mx-auto space-y-6 pb-4">
             {messages.map((message) => (
               <div
@@ -682,8 +672,8 @@ export default function StudentChat() {
           </div>
         </div>
 
-        {/* Input - fixed at bottom, with extra padding for mobile bottom bar */}
-        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] md:pb-4 z-10 w-full box-border">
+        {/* Input - fixed at bottom */}
+        <div className="fixed bottom-16 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto border-t border-border bg-card px-4 md:px-6 py-3 z-20 w-full box-border">
           <div className="max-w-3xl mx-auto">
             {/* Attached docs & files preview */}
             {(selectedDocs.length > 0 || tempFiles.length > 0) && (
