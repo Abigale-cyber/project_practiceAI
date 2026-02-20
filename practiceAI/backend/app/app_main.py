@@ -37,6 +37,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 启动时自动初始化数据库表
+from utils.database import init_db
+
+@app.on_event("startup")
+def on_startup():
+    """应用启动时初始化数据库表"""
+    init_db()
+
 # 注册路由
 app.include_router(user_rt.router)
 app.include_router(question_rt.router)
