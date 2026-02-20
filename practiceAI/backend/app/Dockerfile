@@ -5,8 +5,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends build-essential python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# 配置 pip 镜像
-RUN pip config set global.extra-index-url "https://mirrors.cernet.edu.cn/pypi/web/simple"
+# 配置 pip
+
 RUN pip install --upgrade pip setuptools wheel
 
 # 设置工作目录
