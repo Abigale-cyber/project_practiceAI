@@ -429,10 +429,10 @@ export default function StudentChat() {
   };
 
   return (
-    <div className="size-full h-screen flex bg-background overflow-hidden">
+    <div className="flex flex-col h-full bg-background relative">
       {/* 历史会话侧边栏 */}
       {!sidebarCollapsed && (
-        <div className="w-64 flex-none border-r border-border bg-card flex flex-col h-full">
+        <div className="absolute inset-y-0 left-0 z-10 w-64 md:relative border-r border-border bg-card flex flex-col h-full shadow-lg md:shadow-none">
           <div className="flex-none px-3 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">历史会话</span>
             <button
@@ -515,27 +515,27 @@ export default function StudentChat() {
       )}
 
       {/* 主聊天区 */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden">
         {/* Header */}
-        <div className="flex-none px-6 py-4 border-b border-border bg-card flex items-center gap-3">
+        <div className="flex-none px-4 md:px-6 py-3 border-b border-border bg-card flex items-center gap-3">
           {sidebarCollapsed && (
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors md:hidden md:block"
               title="展开侧边栏"
             >
               <PanelLeftOpen className="size-4" />
             </button>
           )}
           <div>
-            <h1 className="text-lg font-medium text-foreground">智能导师</h1>
-            <p className="text-sm text-muted-foreground">基于知识库的AI助手 · 输入 @ 引用文档</p>
+            <h1 className="text-base md:text-lg font-medium text-foreground">智能导师</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">基于知识库的AI助手 · 输入 @ 引用文档</p>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6">
-          <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0">
+          <div className="max-w-3xl mx-auto space-y-6 pb-4">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -672,8 +672,8 @@ export default function StudentChat() {
           </div>
         </div>
 
-        {/* Input - fixed at bottom */}
-        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 md:py-4">
+        {/* Input - fixed at bottom, with extra padding for mobile bottom bar */}
+        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] md:pb-4 z-10 w-full mb-16 md:mb-0 box-border">
           <div className="max-w-3xl mx-auto">
             {/* Attached docs & files preview */}
             {(selectedDocs.length > 0 || tempFiles.length > 0) && (
