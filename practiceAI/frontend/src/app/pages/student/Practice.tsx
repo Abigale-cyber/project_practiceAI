@@ -194,19 +194,19 @@ export default function StudentPractice() {
   // ==================== SELECT STEP ====================
   if (step === 'select') {
     return (
-      <div className="size-full overflow-auto pb-20 md:pb-0 bg-background">
-        <div className="max-w-4xl mx-auto p-6 md:p-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-semibold mb-1 text-foreground">练习中心</h1>
-            <p className="text-sm text-muted-foreground">选择必修闯关或自由刷题模式</p>
+      <div className="size-full overflow-auto pb-20 md:pb-0 bg-[#FFFDF5] relative">
+        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-[#FDE047] rounded-full mix-blend-multiply blur-3xl opacity-30 animate-blob pointer-events-none"></div>
+        <div className="max-w-4xl mx-auto p-6 md:p-8 relative z-10">
+          <div className="mb-12 border-b-4 border-black pb-4">
+            <h1 className="text-5xl md:text-6xl font-black font-[Syne] tracking-wider mb-1 text-slate-900 uppercase">练习 <span className="text-outline text-[#2563EB]">专区</span></h1>
+            <p className="text-lg font-black font-mono uppercase tracking-widest text-slate-500">选择您的挑战模式</p>
           </div>
 
           {/* ===== 必修闯关 Section ===== */}
-          <div className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Star className="size-5 text-amber-500" />
-              <h2 className="text-lg font-semibold text-foreground">必修闯关</h2>
-              <span className="text-xs text-muted-foreground ml-1">老师指定的练习主题</span>
+          <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6 bg-[#FDE047] w-fit px-4 py-2 border-4 border-black neo-shadow-sm rounded-2xl group hover:neo-shadow hover:-translate-y-1 transition-all">
+              <Star className="size-6 text-black group-hover:rotate-12 transition-transform" strokeWidth={3} />
+              <h2 className="text-2xl font-black uppercase tracking-widest text-black">必 修 闯 关</h2>
             </div>
 
             {loadingTopics ? (
@@ -332,9 +332,9 @@ export default function StudentPractice() {
                       value={freeCount}
                       onChange={(e) => setFreeCount(parseInt(e.target.value))}
                       className="flex-1"
-                      style={{ accentColor: '#00B894' }}
+                      style={{ accentColor: '#FDE047' }}
                     />
-                    <span className="text-lg font-bold text-primary w-8 text-center">{freeCount}</span>
+                    <span className="text-lg font-bold text-black w-8 text-center">{freeCount}</span>
                     <span className="text-sm text-muted-foreground">题</span>
                   </div>
                 </div>

@@ -53,115 +53,106 @@ export default function AdminDashboard() {
 
   const statCards = [
     {
-      label: '学员总数',
+      label: '学 员 总 数',
       value: stats?.student_count ?? 0,
       icon: Users,
-      gradient: 'from-blue-300 to-sky-200',
-      bgLight: 'bg-blue-50',
-      textColor: 'text-blue-400',
+      color: 'bg-[#FDE047]'
     },
     {
-      label: '题库题目',
+      label: '题 库 题 目',
       value: stats?.question_count ?? 0,
       icon: FileQuestion,
-      gradient: 'from-violet-300 to-purple-200',
-      bgLight: 'bg-violet-50',
-      textColor: 'text-violet-400',
+      color: 'bg-[#F9A8D4]'
     },
     {
-      label: '知识库文档',
+      label: '知 识 库 文 档',
       value: stats?.document_count ?? 0,
       icon: Database,
-      gradient: 'from-emerald-300 to-teal-200',
-      bgLight: 'bg-emerald-50',
-      textColor: 'text-emerald-400',
+      color: 'bg-[#2563EB]',
+      textWhite: true
     },
     {
-      label: '平均分数',
+      label: '平 均 分 数',
       value: stats?.average_score ?? 0,
       icon: TrendingUp,
-      gradient: 'from-amber-300 to-orange-200',
-      bgLight: 'bg-amber-50',
-      textColor: 'text-amber-400',
+      color: 'bg-[#FFFDF5]'
     },
   ];
 
   return (
-    <div className="size-full overflow-auto bg-background">
-      <div className="max-w-7xl mx-auto p-6 md:p-8">
-        {/* Header with gradient accent */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gradient-to-br from-primary/70 to-emerald-300 rounded-xl">
-              <Activity className="size-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground">数据总览</h1>
-              <p className="text-sm text-muted-foreground">查看平台整体运营情况</p>
-            </div>
+    <div className="size-full overflow-auto bg-[#FFFDF5]">
+      <div className="max-w-5xl mx-auto p-4 md:p-8">
+        {/* Header */}
+        <div className="mb-8 flex flex-col md:flex-row items-start md:items-end justify-between">
+          <div>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 font-[Syne] leading-none mb-1 md:mb-2 hover:-skew-x-2 transition-transform duration-500 cursor-default">
+              数 据 <br /><span className="text-[#F9A8D4] text-outline">总 览</span>
+            </h1>
           </div>
+          <p className="text-sm md:text-lg font-black text-slate-500 max-w-sm mt-3 md:mt-0 text-right uppercase tracking-widest hidden md:block border-r-4 border-black pr-4 leading-relaxed">
+            查看平台整体运营情况 <br /> 与学员练习动态。
+          </p>
         </div>
 
-        {/* Stats Grid - with gradient icons */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-8 md:mb-12">
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
               <div
                 key={index}
-                className="bg-card rounded-xl p-5 shadow-sm border border-border hover:shadow-md transition-all group"
+                className={`p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 md:border-4 border-black neo-shadow-sm hover:-translate-y-1 hover:neo-shadow transition-all duration-300 group cursor-default flex flex-col justify-between
+                  ${stat.color} ${stat.textWhite ? 'text-white' : 'text-slate-900'}
+                `}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-1.5 rounded-lg bg-gradient-to-br ${stat.gradient}`}>
-                    <Icon className="size-3.5 text-white" />
-                  </div>
-                  <div className={`text-xs font-medium px-2.5 py-1 rounded-full ${stat.bgLight} ${stat.textColor}`}>
-                    {stat.label}
+                <div className="flex justify-between items-start mb-4 md:mb-6">
+                  <div className={`p-2 md:p-3 rounded-xl md:rounded-2xl border-2 md:border-4 border-black bg-white group-hover:scale-110 transition-transform ${stat.textWhite ? 'text-black' : ''}`}>
+                    <Icon className="size-5 md:size-6" strokeWidth={3} />
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-foreground mb-1">
-                  {loading ? (
-                    <div className="h-9 w-16 bg-muted animate-pulse rounded" />
-                  ) : (
-                    stat.value
-                  )}
+                <div>
+                  <div className="text-3xl md:text-5xl font-black mb-1 md:mb-2 leading-none">
+                    {loading ? '...' : stat.value}
+                  </div>
+                  <div className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-90">{stat.label}</div>
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-12">
           {/* Recent Activities */}
-          <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-            <div className="p-5 border-b border-border flex items-center gap-2">
-              <Flame className="size-5 text-orange-300" />
-              <h2 className="text-lg font-semibold text-foreground">最近活动</h2>
+          <div className="bg-white rounded-2xl md:rounded-3xl border-2 md:border-4 border-black neo-shadow-sm overflow-hidden flex flex-col">
+            <div className="p-4 md:p-6 border-b-2 md:border-b-4 border-black flex items-center justify-between bg-[#FDE047]">
+              <div className="flex items-center gap-2 md:gap-3">
+                <Flame className="size-6 md:size-8 text-black" strokeWidth={3} />
+                <h2 className="text-lg md:text-2xl font-black text-black tracking-widest">最 近 活 动</h2>
+              </div>
             </div>
-            <div className="divide-y divide-border">
+            <div className="divide-y-2 md:divide-y-4 divide-black flex-1">
               {activities.length === 0 && !loading && (
-                <div className="p-8 text-center">
-                  <BookOpen className="size-10 mx-auto mb-3 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">暂无活动记录</p>
+                <div className="p-8 md:p-12 text-center text-slate-500 text-xs md:text-sm font-black tracking-widest font-mono">
+                  [ 暂 无 活 动 记 录 ]
                 </div>
               )}
               {activities.map((activity, index) => (
-                <div key={index} className="p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-none size-9 rounded-full bg-primary flex items-center justify-center">
-                      <BookOpen className="size-4 text-white" />
+                <div key={index} className="p-4 md:p-6 hover:bg-black/5 transition-colors group">
+                  <div className="flex items-start gap-3 md:gap-4">
+                    <div className="flex-none size-10 md:size-12 rounded-xl md:rounded-2xl border-2 md:border-4 border-black bg-[#2563EB] flex items-center justify-center neo-shadow-sm group-hover:scale-110 transition-transform">
+                      <BookOpen className="size-5 md:size-6 text-white" strokeWidth={3} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-semibold text-sm text-foreground">{activity.user}</span>
+                      <div className="flex items-center gap-2 md:gap-3 mb-1.5 md:mb-2">
+                        <span className="font-black text-base md:text-lg text-slate-900">{activity.user}</span>
                         {activity.score > 0 && (
-                          <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-500 rounded-full font-medium">
-                            🏅 {activity.score}分
+                          <span className="text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 bg-black text-white rounded-full font-black tracking-widest uppercase">
+                            {activity.score} 分
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">{activity.created_at}</p>
+                      <p className="text-sm md:text-base font-bold text-slate-600 mb-1.5 md:mb-2 leading-tight">{activity.description}</p>
+                      <p className="text-[10px] md:text-xs font-black tracking-widest text-slate-400 font-mono">{activity.created_at}</p>
                     </div>
                   </div>
                 </div>
@@ -170,36 +161,33 @@ export default function AdminDashboard() {
           </div>
 
           {/* Popular Questions */}
-          <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-            <div className="p-5 border-b border-border flex items-center gap-2">
-              <Award className="size-5 text-violet-300" />
-              <h2 className="text-lg font-semibold text-foreground">热门问题</h2>
+          <div className="bg-white rounded-2xl md:rounded-3xl border-2 md:border-4 border-black neo-shadow-sm overflow-hidden flex flex-col">
+            <div className="p-4 md:p-6 border-b-2 md:border-b-4 border-black flex items-center justify-between bg-[#F9A8D4]">
+              <div className="flex items-center gap-2 md:gap-3">
+                <Award className="size-6 md:size-8 text-black" strokeWidth={3} />
+                <h2 className="text-lg md:text-2xl font-black text-black tracking-widest">热 门 问 题</h2>
+              </div>
             </div>
-            <div className="p-5 space-y-3">
+            <div className="divide-y-2 md:divide-y-4 divide-black flex-1">
               {popular.length === 0 && !loading && (
-                <div className="py-8 text-center">
-                  <Award className="size-10 mx-auto mb-3 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">暂无数据</p>
+                <div className="p-8 md:p-12 text-center text-slate-500 text-xs md:text-sm font-black tracking-widest font-mono">
+                  [ 暂 无 数 据 ]
                 </div>
               )}
               {popular.map((item, index) => {
-                const rankColors = [
-                  'from-amber-300 to-orange-300',
-                  'from-slate-300 to-slate-350',
-                  'from-amber-400 to-yellow-400',
-                  'from-gray-250 to-gray-300',
-                  'from-gray-250 to-gray-300',
-                ];
+                const colors = ['bg-[#FDE047]', 'bg-slate-200', 'bg-[#F9A8D4]', 'bg-white', 'bg-white'];
+                const rankColor = colors[index] || 'bg-white';
+
                 return (
-                  <div key={index} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className={`flex-none size-8 rounded-lg bg-gradient-to-br ${rankColors[index] || rankColors[3]} flex items-center justify-center text-xs font-bold text-white shadow-sm`}>
+                  <div key={index} className="flex items-start gap-3 md:gap-4 p-4 md:p-6 hover:bg-black/5 transition-colors group">
+                    <div className={`flex-none size-10 md:size-12 rounded-xl md:rounded-2xl border-2 md:border-4 border-black ${rankColor} flex items-center justify-center text-lg md:text-xl font-black text-black neo-shadow-sm group-hover:scale-110 transition-transform`}>
                       {index + 1}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm text-foreground mb-1 line-clamp-2">{item.question}</h3>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="px-2 py-0.5 bg-violet-50 text-violet-400 rounded-full">{item.type}</span>
-                        <span>{item.attempt_count} 次练习</span>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <h3 className="font-black text-base md:text-lg text-slate-900 mb-1.5 md:mb-2 line-clamp-2 leading-tight">{item.question}</h3>
+                      <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm font-black tracking-widest">
+                        <span className="px-2 md:px-3 py-0.5 md:py-1 bg-black text-white rounded-full border-2 border-black">{item.type}</span>
+                        <span className="text-slate-500 bg-white border-2 border-black px-2 md:px-3 py-0.5 md:py-1 rounded-full">{item.attempt_count} 次练习</span>
                       </div>
                     </div>
                   </div>

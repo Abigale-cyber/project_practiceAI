@@ -19,7 +19,6 @@ export default function Login() {
         try {
             if (mode === 'register') {
                 await register(username, password);
-                // 注册成功后自动登录
                 await login(username, password);
             } else {
                 await login(username, password);
@@ -33,84 +32,95 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-            <div className="w-full max-w-sm">
-                {/* Logo */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center size-14 rounded-2xl bg-[#00B894] mb-4">
-                        <span className="text-2xl text-white font-bold">P</span>
+        <div className="min-h-screen bg-[#FFFDF5] flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background Blobs for Brutalist theme */}
+            <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-[#FDE047] rounded-full mix-blend-multiply blur-3xl opacity-70 animate-blob pointer-events-none"></div>
+            <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-[#F9A8D4] rounded-full mix-blend-multiply blur-3xl opacity-70 animate-blob animation-delay-2000 pointer-events-none"></div>
+
+            <div className="w-full max-w-md relative z-10">
+                {/* Logo Area */}
+                <div className="mb-10 text-center">
+                    <div className="inline-flex h-20 w-32 bg-[#2563EB] rounded-2xl items-center justify-center rotate-3 neo-shadow-sm mb-6 border-4 border-black">
+                        <span className="text-4xl text-white font-black tracking-tighter uppercase font-[Syne]">JD.</span>
                     </div>
-                    <h1 className="text-2xl font-semibold text-foreground">PracticeAI</h1>
-                    <p className="text-sm text-muted-foreground mt-1">AI 陪练助手</p>
+                    <h1 className="text-5xl font-black tracking-tighter text-slate-900 mb-2 uppercase display-font transform hover:skew-x-3 transition-transform duration-500 cursor-default">
+                        AI 陪练助手
+                    </h1>
+                    <p className="text-lg font-bold tracking-widest text-slate-700 bg-black text-white inline-block px-4 py-1 rounded-full -rotate-1">
+                        智能学习伙伴
+                    </p>
                 </div>
 
-                {/* Form */}
-                <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                {/* Brutalist Form Card */}
+                <div className="bg-white rounded-3xl border-4 border-black p-8 neo-shadow transition-transform duration-300 hover:-translate-y-1">
                     {/* Tabs */}
-                    <div className="flex gap-4 mb-6">
+                    <div className="flex gap-4 mb-8">
                         <button
-                            className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${mode === 'login'
-                                    ? 'border-[#00B894] text-[#00B894]'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                            className={`flex-1 py-3 text-lg font-black uppercase transition-all rounded-xl border-4 border-black neo-shadow-sm tracking-widest ${mode === 'login'
+                                ? 'bg-[#F9A8D4] text-black translate-x-[2px] translate-y-[2px] !shadow-none'
+                                : 'bg-white text-black hover:bg-black hover:text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:!shadow-none'
                                 }`}
                             onClick={() => { setMode('login'); setError(''); }}
                         >
-                            登录
+                            账 号 登 录
                         </button>
                         <button
-                            className={`flex-1 pb-2 text-sm font-medium transition-colors border-b-2 ${mode === 'register'
-                                    ? 'border-[#00B894] text-[#00B894]'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                            className={`flex-1 py-3 text-lg font-black uppercase transition-all rounded-xl border-4 border-black neo-shadow-sm tracking-widest ${mode === 'register'
+                                ? 'bg-[#F9A8D4] text-black translate-x-[2px] translate-y-[2px] !shadow-none'
+                                : 'bg-white text-black hover:bg-black hover:text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:!shadow-none'
                                 }`}
                             onClick={() => { setMode('register'); setError(''); }}
                         >
-                            注册
+                            首 次 注 册
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-6">
                         <div>
-                            <label className="block text-sm text-muted-foreground mb-1.5">用户名</label>
+                            <label className="block text-sm font-black uppercase text-black mb-2 tracking-widest">账 户 名</label>
                             <input
                                 type="text"
                                 value={username}
                                 onChange={e => setUsername(e.target.value)}
-                                className="w-full px-3 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#00B894] focus:border-transparent transition-colors"
-                                placeholder="请输入用户名"
+                                className="w-full neo-input border-4 border-black focus:ring-4 focus:ring-[#F9A8D4]"
+                                placeholder="输入用户名"
                                 required
                             />
                         </div>
                         <div>
-                            <label className="block text-sm text-muted-foreground mb-1.5">密码</label>
+                            <label className="block text-sm font-black uppercase text-black mb-2 tracking-widest">账 户 密 码</label>
                             <input
                                 type="password"
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
-                                className="w-full px-3 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#00B894] focus:border-transparent transition-colors"
-                                placeholder="请输入密码"
+                                className="w-full neo-input border-4 border-black focus:ring-4 focus:ring-[#F9A8D4]"
+                                placeholder="输入密码"
                                 required
                             />
                         </div>
 
                         {error && (
-                            <div className="text-sm text-red-500 bg-red-500/10 rounded-lg px-3 py-2">
-                                {error}
+                            <div className="text-sm font-bold uppercase text-white bg-red-500 border-4 border-black rounded-lg px-4 py-3 neo-shadow-sm">
+                                [错误提示]: {error}
                             </div>
                         )}
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-2.5 rounded-lg bg-[#00B894] text-white text-sm font-medium hover:bg-[#00a383] transition-colors disabled:opacity-50"
+                            className="w-full py-4 bg-[#2563EB] text-white text-xl border-4 border-black neo-btn mt-4 disabled:opacity-70 disabled:grayscale tracking-widest"
                         >
-                            {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
+                            {loading ? '处 理 中...' : mode === 'login' ? '开 始 练 习' : '创 建 账 号'}
                         </button>
                     </form>
 
                     {/* Demo hint */}
-                    <p className="text-xs text-muted-foreground text-center mt-4">
-                        默认管理员: admin / admin123
-                    </p>
+                    <div className="mt-8 pt-6 border-t-4 border-black border-dashed flex items-center justify-between">
+                        <span className="text-xs font-black uppercase bg-black text-white px-3 py-1 rounded-full tracking-widest">测试用</span>
+                        <p className="text-sm font-medium text-slate-500 font-mono text-right border-2 border-slate-300 bg-slate-100 px-2 rounded">
+                            admin / admin123
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
