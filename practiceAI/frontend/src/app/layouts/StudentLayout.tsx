@@ -21,7 +21,7 @@ export default function StudentLayout() {
           {!collapsed && (
             <div>
               <h1 className="text-3xl font-black font-[Syne] tracking-tighter uppercase text-slate-900 leading-none">
-                JD.
+                MG. AI
               </h1>
               <p className="text-xs font-bold font-mono tracking-widest text-slate-500 mt-1 uppercase mt-2">学 生 端</p>
             </div>

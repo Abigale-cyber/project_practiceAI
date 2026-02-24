@@ -41,7 +41,7 @@ export default function Login() {
                 {/* Logo Area */}
                 <div className="mb-10 text-center">
                     <div className="inline-flex h-20 w-32 bg-[#2563EB] rounded-2xl items-center justify-center rotate-3 neo-shadow-sm mb-6 border-4 border-black">
-                        <span className="text-4xl text-white font-black tracking-tighter uppercase font-[Syne]">JD.</span>
+                        <span className="text-4xl text-white font-black tracking-tighter uppercase font-[Syne]">MG.</span>
                     </div>
                     <h1 className="text-5xl font-black tracking-tighter text-slate-900 mb-2 uppercase display-font transform hover:skew-x-3 transition-transform duration-500 cursor-default">
                         AI 陪练助手

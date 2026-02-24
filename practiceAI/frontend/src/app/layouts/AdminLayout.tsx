@@ -16,7 +16,7 @@ export default function AdminLayout() {
       <aside className="w-64 bg-white border-r-4 border-black flex flex-col sticky top-0 h-screen flex-shrink-0 z-50">
         <div className="p-6 border-b-4 border-black">
           <h1 className="text-3xl font-black font-[Syne] tracking-tighter uppercase text-slate-900 leading-none">
-            J/D. AI
+            MG. AI
           </h1>
           <p className="text-xs font-bold font-mono tracking-widest text-slate-500 mt-2 uppercase">教 师 端</p>
         </div>
