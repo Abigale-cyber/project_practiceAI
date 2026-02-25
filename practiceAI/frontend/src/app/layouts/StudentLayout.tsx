@@ -68,8 +68,10 @@ export default function StudentLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-0 relative">
-        <Outlet />
+      <main className="flex-1 flex flex-col min-h-0 relative" style={{ height: '100dvh', maxHeight: 'calc(100dvh - env(safe-area-inset-bottom))' }}>
+        <div className="flex-1 flex flex-col min-h-0 pb-16 md:pb-0">
+          <Outlet />
+        </div>
       </main>
 
       {/* Mobile Bottom Navigation - Brutalist Style */}

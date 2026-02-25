@@ -123,15 +123,56 @@ export default function StudentChat() {
     setChatSessionId(sessionId);
     try {
       const msgs = await chatApi.getMessages(sessionId);
-      const loaded: Message[] = (msgs || []).map((m: any) => ({
-        id: m.id,
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-        citations: m.citations,
-        suggestedQuestions: m.suggested_questions,
-        attachedDocs: m.attached_docs,
-        timestamp: new Date(m.created_at),
-      }));
+      const loaded: Message[] = (msgs || []).map((m: any) => {
+        // 从 content 中提取思考内容，分离到 thinking 字段
+        // 后端保存的消息可能有以下格式：
+        // 1. <think>思考内容</think>正式回答 — 完整标签
+        // 2. 思考内容</think>正式回答 — 缺少开头<think>（R1 Distill模型流式处理导致）
+        // 3. <think>思考内容 — 缺少结尾</think>
+        let content = m.content || '';
+        let thinking = '';
+
+        // 情况1: 完整的 <think>...</think> 块
+        const thinkMatches = content.match(/<think>[\s\S]*?<\/think>/g);
+        if (thinkMatches) {
+          thinking = thinkMatches.map((block: string) => block.replace(/<\/?think>/g, '').trim()).join('\n\n');
+          content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+
+        // 情况2: 只有 </think> 没有 <think>（最常见的情况）
+        // 此时 </think> 之前的内容都是思考，之后的是正式回答
+        if (content.includes('</think>')) {
+          const endThinkIdx = content.indexOf('</think>');
+          const beforeThink = content.substring(0, endThinkIdx).trim();
+          if (beforeThink) {
+            thinking = (thinking ? thinking + '\n\n' : '') + beforeThink;
+          }
+          content = content.substring(endThinkIdx + '</think>'.length).trim();
+        }
+
+        // 情况3: 只有 <think> 没有 </think>
+        if (content.includes('<think>')) {
+          const parts = content.split('<think>');
+          content = parts[0].trim();
+          thinking = (thinking ? thinking + '\n\n' : '') + parts.slice(1).join('\n').trim();
+        }
+
+        // 清理残留标签
+        content = content.replace(/<\/?think>/g, '').trim();
+        if (thinking) {
+          thinking = thinking.replace(/<\/?think>/g, '').trim();
+        }
+        return {
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content,
+          thinking: thinking || undefined,
+          citations: m.citations,
+          suggestedQuestions: m.suggested_questions,
+          attachedDocs: m.attached_docs,
+          timestamp: new Date(m.created_at),
+        };
+      });
       setMessages(loaded.length > 0 ? loaded : [{
         id: 'welcome',
         role: 'assistant',
@@ -429,10 +470,10 @@ export default function StudentChat() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background relative overflow-hidden">
+    <div className="flex h-full bg-background relative overflow-hidden">
       {/* 历史会话侧边栏 */}
       {!sidebarCollapsed && (
-        <div className="absolute inset-y-0 left-0 z-10 w-64 md:relative border-r border-border bg-card flex flex-col h-full shadow-lg md:shadow-none">
+        <div className="absolute inset-y-0 left-0 z-10 w-64 md:relative md:flex-shrink-0 border-r border-border bg-card flex flex-col h-full shadow-lg md:shadow-none">
           <div className="flex-none px-3 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">历史会话</span>
             <button
@@ -515,7 +556,7 @@ export default function StudentChat() {
       )}
 
       {/* 主聊天区 */}
-      <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 w-full overflow-hidden">
         {/* Header */}
         <div className="flex-none px-4 md:px-6 py-3 border-b border-border bg-card flex items-center gap-3">
           {sidebarCollapsed && (
@@ -534,7 +575,7 @@ export default function StudentChat() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0 pb-32">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 relative z-0" style={{ minHeight: 0 }}>
           <div className="max-w-3xl mx-auto space-y-6 pb-4">
             {messages.map((message) => (
               <div
@@ -595,7 +636,7 @@ export default function StudentChat() {
                         ),
                       }}
                     >
-                      {message.content}
+                      {cleanThinkTags(message.content)}
                     </ReactMarkdown>
                   </div>
 
@@ -673,7 +714,7 @@ export default function StudentChat() {
         </div>
 
         {/* Input - fixed at bottom */}
-        <div className="fixed bottom-16 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto border-t border-border bg-card px-4 md:px-6 py-3 z-20 w-full box-border">
+        <div className="flex-none border-t border-border bg-card px-4 md:px-6 py-3 z-20 w-full box-border">
           <div className="max-w-3xl mx-auto">
             {/* Attached docs & files preview */}
             {(selectedDocs.length > 0 || tempFiles.length > 0) && (

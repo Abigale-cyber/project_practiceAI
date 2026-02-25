@@ -27,7 +27,7 @@ export default function StudentPractice() {
   const [step, setStep] = useState<'select' | 'practice' | 'result'>('select');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [startingRequired, setStartingRequired] = useState(false);
+  const [startingRequired, setStartingRequired] = useState<number | null>(null);
   const [startingFree, setStartingFree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -71,7 +71,7 @@ export default function StudentPractice() {
 
   // 必修闯关 - 从教师预生成题库启动（不调用 LLM，瞬间开始）
   const startRequiredPractice = async (topic: QuizTopic) => {
-    setStartingRequired(true);
+    setStartingRequired(topic.id);
     setPracticeSource('required');
     try {
       const session = await practiceApi.startFromSet(topic.id);
@@ -91,7 +91,7 @@ export default function StudentPractice() {
     } catch (err: any) {
       toast.error(err.message || '开始练习失败');
     } finally {
-      setStartingRequired(false);
+      setStartingRequired(null);
     }
   };
 
@@ -254,15 +254,15 @@ export default function StudentPractice() {
 
                       <button
                         onClick={() => startRequiredPractice(topic)}
-                        disabled={startingRequired}
+                        disabled={startingRequired !== null}
                         className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                       >
-                        {startingRequired ? (
+                        {startingRequired === topic.id ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
                           <Target className="size-4" />
                         )}
-                        {startingRequired ? '加载中...' : '开始闯关'}
+                        {startingRequired === topic.id ? '加载中...' : '开始闯关'}
                       </button>
                     </div>
                   </div>
