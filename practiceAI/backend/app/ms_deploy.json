@@ -1,0 +1,7 @@
+{
+  "platform": "modelscope",
+  "framework": "docker",
+  "resource": "CPU-2C-4G",
+  "port": 8000,
+  "dockerfile": "Dockerfile"
+}
