@@ -10,6 +10,26 @@ import AdminKnowledge from "./pages/admin/Knowledge";
 import DocumentChunks from "./pages/admin/DocumentChunks";
 import AdminSettings from "./pages/admin/Settings";
 import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { createElement } from "react";
+
+// 包装组件：需要登录
+function withAuth(Component: React.ComponentType) {
+  return function AuthWrapped() {
+    return createElement(ProtectedRoute, null, createElement(Component));
+  };
+}
+
+// 包装组件：需要管理员
+function withAdmin(Component: React.ComponentType) {
+  return function AdminWrapped() {
+    return createElement(
+      ProtectedRoute,
+      { requireAdmin: true },
+      createElement(Component)
+    );
+  };
+}
 
 export const router = createBrowserRouter([
   {
@@ -18,7 +38,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    Component: StudentLayout,
+    Component: withAuth(StudentLayout),
     children: [
       { index: true, Component: StudentHome },
       { path: "chat", Component: StudentChat },
@@ -28,7 +48,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/admin",
-    Component: AdminLayout,
+    Component: withAdmin(AdminLayout),
     children: [
       { index: true, Component: AdminDashboard },
       { path: "knowledge", Component: AdminKnowledge },
@@ -37,4 +57,3 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
-

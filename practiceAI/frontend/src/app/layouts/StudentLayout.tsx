@@ -1,10 +1,18 @@
 import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router';
-import { MessageSquare, BookOpen, History, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
+import { MessageSquare, BookOpen, History, Home, PanelLeftClose, PanelLeftOpen, LogOut, User } from 'lucide-react';
+import { useAuth } from '../AuthContext';
 
 export default function StudentLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const navItems = [
     { path: '/', label: '首 页', icon: Home, colors: 'bg-[#FDE047] text-black border-black' },
@@ -56,14 +64,42 @@ export default function StudentLayout() {
             );
           })}
         </nav>
-        <div className={`border-t-4 border-black ${collapsed ? 'p-3' : 'p-6'}`}>
-          <Link
-            to="/admin"
-            title={collapsed ? '教师' : undefined}
-            className={`block text-center border-4 border-black py-4 font-black font-mono tracking-widest rounded-xl transition-all hover:-translate-y-1 neo-shadow-sm hover:neo-shadow hover:bg-black hover:text-white ${collapsed ? 'px-2' : 'px-4'}`}
+
+        {/* User Info + Logout + Admin Link */}
+        <div className={`border-t-4 border-black ${collapsed ? 'p-3 space-y-3' : 'p-6 space-y-4'}`}>
+          {/* User Info */}
+          {user && !collapsed && (
+            <div className="flex items-center gap-3 px-3 py-2 bg-[#FFFDF5] rounded-xl border-2 border-black/20">
+              <div className="w-8 h-8 bg-[#2563EB] rounded-full flex items-center justify-center border-2 border-black flex-shrink-0">
+                <User className="size-4 text-white" strokeWidth={3} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black truncate">{user.user_name}</p>
+                <p className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">{user.role}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Admin */}
+          {user?.role === 'admin' && (
+            <Link
+              to="/admin"
+              title={collapsed ? '教师' : undefined}
+              className={`block text-center border-4 border-black py-4 font-black font-mono tracking-widest rounded-xl transition-all hover:-translate-y-1 neo-shadow-sm hover:neo-shadow hover:bg-black hover:text-white ${collapsed ? 'px-2' : 'px-4'}`}
+            >
+              {collapsed ? '教' : '进入教师端'}
+            </Link>
+          )}
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            title={collapsed ? '退出' : undefined}
+            className={`w-full flex items-center justify-center gap-2 border-4 border-black py-3 font-black font-mono tracking-widest rounded-xl transition-all hover:-translate-y-1 neo-shadow-sm hover:neo-shadow hover:bg-red-500 hover:text-white hover:border-red-700 text-sm ${collapsed ? 'px-2' : 'px-4'}`}
           >
-            {collapsed ? '教' : '进入教师端'}
-          </Link>
+            <LogOut className="size-4" strokeWidth={3} />
+            {!collapsed && '退 出 登 录'}
+          </button>
         </div>
       </aside>
 
