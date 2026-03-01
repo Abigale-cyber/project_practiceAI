@@ -28,10 +28,14 @@ def root():
     return RedirectResponse(url="/docs", status_code=302)
 
 
-# CORS 中间件
+# CORS 中间件 —— 通过环境变量 CORS_ORIGINS 配置允许的前端域名
+# 多个域名用逗号分隔，如: CORS_ORIGINS=http://localhost:5173,https://example.com
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +48,14 @@ from utils.database import init_db
 def on_startup():
     """应用启动时初始化数据库表"""
     init_db()
+
+
+# 健康检查接口
+@app.get("/health", tags=["系统"])
+async def health_check():
+    """健康检查（供 Docker / 负载均衡器使用）"""
+    return {"status": "ok"}
+
 
 # 注册路由
 app.include_router(user_rt.router)
