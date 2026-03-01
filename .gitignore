@@ -23,9 +23,14 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Env
-.env
+# Env (any depth)
+**/.env
 .env.local
+!**/.env.example
+!**/.env.production
+
+# Docker volumes
+volumes/
 
 # Logs
 *.log
