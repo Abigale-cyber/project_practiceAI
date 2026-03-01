@@ -34,15 +34,21 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
         headers,
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 && !path.includes('/api/auth/login')) {
         removeToken();
         window.location.href = '/login';
         throw new Error('登录已过期，请重新登录');
     }
 
     if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || '请求失败');
+        let errMessage = '请求失败';
+        try {
+            const err = await res.json();
+            errMessage = err.detail || errMessage;
+        } catch {
+            errMessage = res.statusText || errMessage;
+        }
+        throw new Error(errMessage);
     }
 
     return res.json();

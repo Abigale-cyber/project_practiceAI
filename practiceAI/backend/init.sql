@@ -118,6 +118,6 @@ INSERT INTO practice_settings (id) VALUES (1) ON CONFLICT DO NOTHING;
 -- 插入默认管理员
 INSERT INTO users (username, password_hash, role) VALUES (
     'admin',
-    '$2b$12$LJ3m4ys3uz2m6RE64JOOBe0s2BY.gy2BQKFG9XRsLJv1HBiH9BWGK',
+    '$2b$12$KvfjGY0b5dQaVlR3F8raOu3ooYv45FBFCG2v4786GX5RhZwX8B1k2',
     'admin'
 ) ON CONFLICT DO NOTHING;
