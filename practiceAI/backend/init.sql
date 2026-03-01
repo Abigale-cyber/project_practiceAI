@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     file_size VARCHAR(50),
     category VARCHAR(100) DEFAULT '未分类',
     status VARCHAR(20) DEFAULT 'processing',
+    chunk_count INTEGER DEFAULT 0,
     uploaded_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
