@@ -1,10 +1,5 @@
 """
 练习模块 —— 基于 RAG + LLM 智能出题
-
-不再依赖手动题库，而是：
-1. 从知识库检索相关内容
-2. 用 LLM 根据知识库内容生成题目
-3. 用 LLM 批改问答题
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body
@@ -21,16 +16,14 @@ from schemas.practice import (
 )
 from service.rag import retrieve_relevant_chunks
 from service.llm import chat_block
+from service.auth import get_current_user
 import json
 import random
 import re
 
 router = APIRouter(prefix="/api/practice", tags=["练习"])
 
-# 临时硬编码 user_id
-TEST_USER_ID = 1
-
-# ===== 出题 Prompt（集中管理在 service/prompts.py） =====
+# ===== 出题 Prompt =====
 from service.prompts import QUIZ_SYSTEM_PROMPT as QUESTION_GENERATION_PROMPT
 from service.prompts import QUIZ_GRADING_PROMPT as ESSAY_GRADING_PROMPT
 
@@ -38,8 +31,9 @@ from service.prompts import QUIZ_GRADING_PROMPT as ESSAY_GRADING_PROMPT
 @router.get("/knowledge-bases")
 async def get_knowledge_bases(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """获取可练习的知识库列表（从已处理的文档中获取）"""
+    """获取可练习的知识库列表"""
     try:
         docs = db.query(KnowledgeDocument).filter(
             KnowledgeDocument.status == "processed"
@@ -59,8 +53,11 @@ async def get_knowledge_bases(
 
 
 @router.get("/question-sets")
-async def get_student_question_sets(db: Session = Depends(get_db)):
-    """获取教师已配置好的题目集（必修闯关用）—— 只返回 ready 状态的"""
+async def get_student_question_sets(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """获取教师已配置好的题目集（必修闯关用）"""
     from models.question import QuestionSet, Question as QuestionModel
     try:
         sets = db.query(QuestionSet).filter(
@@ -88,17 +85,18 @@ async def get_student_question_sets(db: Session = Depends(get_db)):
 async def start_practice_from_set(
     set_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """从教师预生成的题目集开始练习（必修闯关）—— 不调用 LLM，直接使用已存好的题目"""
+    """从教师预生成的题目集开始练习（必修闯关）"""
     from models.question import QuestionSet, Question as QuestionModel
     try:
+        user_id = current_user["user_id"]
         qs = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
         if not qs:
             raise HTTPException(status_code=404, detail="题目集不存在")
         if qs.status != "ready":
             raise HTTPException(status_code=400, detail="题目集尚未就绪")
 
-        # 取出预存的题目
         stored_questions = db.query(QuestionModel).filter(
             QuestionModel.set_id == set_id
         ).order_by(QuestionModel.sort_order).all()
@@ -106,9 +104,8 @@ async def start_practice_from_set(
         if not stored_questions:
             raise HTTPException(status_code=400, detail="该题目集暂无题目")
 
-        # 创建练习会话
         session = PracticeSession(
-            user_id=TEST_USER_ID,
+            user_id=user_id,
             knowledge_base=qs.knowledge_base_id or "all",
             question_type="all",
             total_questions=len(stored_questions),
@@ -117,7 +114,6 @@ async def start_practice_from_set(
         db.commit()
         db.refresh(session)
 
-        # 用预存题目填充 PracticeAnswer 占位
         questions_data = []
         for i, sq in enumerate(stored_questions):
             q_id = i + 1
@@ -143,7 +139,7 @@ async def start_practice_from_set(
 
         db.commit()
 
-        logger.info(f"必修闯关开始: session={session.id}, set={set_id}, questions={len(questions_data)}")
+        logger.info(f"必修闯关开始: session={session.id}, set={set_id}, user={user_id}")
 
         return {
             "session_id": session.id,
@@ -162,9 +158,12 @@ async def start_practice_from_set(
 async def start_practice(
     data: StartPracticeRequest = Body(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """开始练习 —— 从知识库检索内容，用 LLM 生成题目"""
     try:
+        user_id = current_user["user_id"]
+
         # 1. 从知识库获取内容
         knowledge_content = _get_knowledge_content(data.knowledge_base, db)
 
@@ -184,12 +183,12 @@ async def start_practice(
         elif question_type == "essay":
             type_instruction = f"请生成 {question_count} 道问答题。"
         else:
-            choice_count = max(1, question_count * 3 // 5)  # 60% 选择题
+            choice_count = max(1, question_count * 3 // 5)
             essay_count = question_count - choice_count
             type_instruction = f"请生成 {choice_count} 道选择题和 {essay_count} 道问答题，共 {question_count} 道题。"
 
         # 3. 调用 LLM 生成题目
-        logger.info(f"开始智能出题: count={question_count}, type={question_type}")
+        logger.info(f"开始智能出题: count={question_count}, type={question_type}, user={user_id}")
 
         user_message = f"""{type_instruction}
 
@@ -214,7 +213,7 @@ async def start_practice(
 
         # 5. 创建练习会话
         session = PracticeSession(
-            user_id=TEST_USER_ID,
+            user_id=user_id,
             knowledge_base=data.knowledge_base or "all",
             question_type=question_type,
             total_questions=len(questions),
@@ -235,7 +234,6 @@ async def start_practice(
             }
             questions_data.append(q_data)
 
-            # 将完整题目信息存储为 PracticeAnswer 的占位记录
             answer_placeholder = PracticeAnswer(
                 session_id=session.id,
                 question_id=q_id,
@@ -243,7 +241,6 @@ async def start_practice(
                 is_correct=None,
                 ai_feedback=None,
             )
-            # 将正确答案和解析存到 ai_feedback 字段临时缓存
             answer_placeholder.ai_feedback = json.dumps({
                 "correct_answer": q.get("correct_answer", ""),
                 "explanation": q.get("explanation", ""),
@@ -275,10 +272,10 @@ async def submit_answer(
     session_id: int,
     data: SubmitAnswerRequest = Body(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """提交单题答案 —— 选择题直接判分，问答题用 LLM 批改"""
+    """提交单题答案"""
     try:
-        # 获取缓存的题目信息
         placeholder = db.query(PracticeAnswer).filter(
             PracticeAnswer.session_id == session_id,
             PracticeAnswer.question_id == data.question_id,
@@ -287,7 +284,6 @@ async def submit_answer(
         if not placeholder:
             raise HTTPException(status_code=404, detail="题目不存在")
 
-        # 解析缓存的题目元数据
         try:
             meta = json.loads(placeholder.ai_feedback or "{}")
         except json.JSONDecodeError:
@@ -302,14 +298,12 @@ async def submit_answer(
         feedback = ""
 
         if q_type == "choice":
-            # 选择题：直接比对
             is_correct = data.user_answer.strip() == correct_answer.strip()
             if is_correct:
                 feedback = f"✅ 回答正确！\n\n**解析：** {explanation}"
             else:
                 feedback = f"❌ 回答错误。\n\n**正确答案：** {correct_answer}\n\n**解析：** {explanation}"
         else:
-            # 问答题：用 LLM 批改
             grading_prompt = ESSAY_GRADING_PROMPT.format(
                 question=question_text,
                 correct_answer=correct_answer,
@@ -322,7 +316,6 @@ async def submit_answer(
             is_correct = grading_result.get("is_correct", False)
             feedback = grading_result.get("feedback", "AI 批改完成")
 
-        # 更新答案记录
         placeholder.user_answer = data.user_answer
         placeholder.is_correct = is_correct
         placeholder.ai_feedback = feedback
@@ -348,6 +341,7 @@ async def finish_practice(
     session_id: int,
     duration: int = 0,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """完成练习（汇总分数）"""
     try:
@@ -357,7 +351,7 @@ async def finish_practice(
 
         answers = db.query(PracticeAnswer).filter(
             PracticeAnswer.session_id == session_id,
-            PracticeAnswer.user_answer != "",  # 排除占位记录
+            PracticeAnswer.user_answer != "",
         ).all()
 
         correct_count = sum(1 for a in answers if a.is_correct is True)
@@ -388,6 +382,7 @@ async def finish_practice(
 async def get_practice_result(
     session_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取练习结果"""
     try:
@@ -434,7 +429,6 @@ def _get_knowledge_content(knowledge_base: Optional[str], db: Session) -> str:
     if not chunks:
         return ""
 
-    # 随机选取一些 chunk 作为出题素材（避免 prompt 过长）
     max_chunks = min(8, len(chunks))
     selected_chunks = random.sample(chunks, max_chunks)
 
@@ -455,21 +449,17 @@ def _parse_questions(llm_response: str) -> list:
         return []
 
     try:
-        # 尝试直接解析
         questions = json.loads(llm_response.strip())
         if isinstance(questions, list):
             return questions
     except json.JSONDecodeError:
         pass
 
-    # 尝试提取 JSON 数组
     try:
-        # 匹配 ```json ... ``` 块
         json_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', llm_response)
         if json_match:
             return json.loads(json_match.group(1))
 
-        # 匹配裸 JSON 数组
         json_match = re.search(r'(\[[\s\S]*\])', llm_response)
         if json_match:
             return json.loads(json_match.group(1))

@@ -1,11 +1,5 @@
 """
-题目集管理 —— 教师配置出题、LLM 生成题目、永久存储
-
-流程：
-1. 教师创建「题目集」：指定主题、知识库、题型、难度等
-2. 点击「生成题目」→ 后台调用 LLM → 生成题目 → 存入 questions 表
-3. 教师可以预览、编辑、删除单个题目
-4. 学生练习时直接从 questions 表取已存好的题目
+题目集管理 —— 教师配置出题、LLM 生成题目、永久存储（需管理员权限）
 """
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -17,18 +11,20 @@ from models.question import QuestionSet, Question
 from models.knowledge import KnowledgeDocument, KnowledgeChunk
 from service.llm import chat_block
 from service.prompts import QUIZ_SYSTEM_PROMPT
+from service.auth import require_admin
 import json
 import re
 
 router = APIRouter(prefix="/api/admin/questions", tags=["题目管理"])
 
-TEST_USER_ID = 1
-
 
 # ==================== 题目集CRUD ====================
 
 @router.get("/sets")
-async def list_question_sets(db: Session = Depends(get_db)):
+async def list_question_sets(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """获取所有题目集"""
     try:
         sets = db.query(QuestionSet).order_by(QuestionSet.created_at.desc()).all()
@@ -62,10 +58,10 @@ async def create_question_set(
     data: dict,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """创建题目集并自动生成题目"""
     try:
-        # 获取知识库名称
         kb_name = ""
         kb_id = data.get("knowledge_base_id", "")
         if kb_id and kb_id != "all":
@@ -88,7 +84,6 @@ async def create_question_set(
         db.commit()
         db.refresh(question_set)
 
-        # 后台生成题目
         background_tasks.add_task(
             _generate_questions_background,
             question_set.id,
@@ -106,7 +101,11 @@ async def create_question_set(
 
 
 @router.get("/sets/{set_id}")
-async def get_question_set(set_id: int, db: Session = Depends(get_db)):
+async def get_question_set(
+    set_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """获取题目集详情（含题目列表）"""
     try:
         s = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
@@ -151,7 +150,12 @@ async def get_question_set(set_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/sets/{set_id}")
-async def update_question_set(set_id: int, data: dict, db: Session = Depends(get_db)):
+async def update_question_set(
+    set_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """编辑题目集配置"""
     try:
         s = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
@@ -165,7 +169,6 @@ async def update_question_set(set_id: int, data: dict, db: Session = Depends(get
             if key in data:
                 setattr(s, key, data[key])
 
-        # 若修改了知识库 ID，同步更新名称
         if "knowledge_base_id" in data and "knowledge_base_name" not in data:
             kb_id = data["knowledge_base_id"]
             if kb_id and kb_id != "all":
@@ -187,14 +190,18 @@ async def update_question_set(set_id: int, data: dict, db: Session = Depends(get
 
 
 @router.post("/sets/{set_id}/questions")
-async def add_question_to_set(set_id: int, data: dict, db: Session = Depends(get_db)):
+async def add_question_to_set(
+    set_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """手动向题目集添加单个题目"""
     try:
         s = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
         if not s:
             raise HTTPException(status_code=404, detail="题目集不存在")
 
-        # 获取当前最大排序
         max_order = db.query(Question).filter(
             Question.set_id == set_id
         ).count()
@@ -210,7 +217,6 @@ async def add_question_to_set(set_id: int, data: dict, db: Session = Depends(get
         )
         db.add(q)
 
-        # 确保题目集状态为 ready
         if s.status != "ready":
             s.status = "ready"
 
@@ -234,7 +240,11 @@ async def add_question_to_set(set_id: int, data: dict, db: Session = Depends(get
 
 
 @router.delete("/sets/{set_id}")
-async def delete_question_set(set_id: int, db: Session = Depends(get_db)):
+async def delete_question_set(
+    set_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """删除题目集（级联删除题目）"""
     try:
         s = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
@@ -258,14 +268,14 @@ async def regenerate_questions(
     set_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """重新生成题目（删除旧题目后重新调用 LLM）"""
+    """重新生成题目"""
     try:
         s = db.query(QuestionSet).filter(QuestionSet.id == set_id).first()
         if not s:
             raise HTTPException(status_code=404, detail="题目集不存在")
 
-        # 删除旧题目
         db.query(Question).filter(Question.set_id == set_id).delete()
         s.status = "generating"
         db.commit()
@@ -284,7 +294,12 @@ async def regenerate_questions(
 # ==================== 单题编辑 ====================
 
 @router.put("/questions/{question_id}")
-async def update_question(question_id: int, data: dict, db: Session = Depends(get_db)):
+async def update_question(
+    question_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """编辑单个题目"""
     try:
         q = db.query(Question).filter(Question.id == question_id).first()
@@ -321,7 +336,11 @@ async def update_question(question_id: int, data: dict, db: Session = Depends(ge
 
 
 @router.delete("/questions/{question_id}")
-async def delete_question(question_id: int, db: Session = Depends(get_db)):
+async def delete_question(
+    question_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
     """删除单个题目"""
     try:
         q = db.query(Question).filter(Question.id == question_id).first()
@@ -348,7 +367,6 @@ def _generate_questions_background(set_id: int):
         if not question_set:
             return
 
-        # 1. 获取知识库内容
         knowledge_content = _get_knowledge_content(question_set.knowledge_base_id, db)
         if not knowledge_content:
             question_set.status = "error"
@@ -356,7 +374,6 @@ def _generate_questions_background(set_id: int):
             logger.error(f"题目集 {set_id} 的知识库无内容")
             return
 
-        # 2. 构建出题指令
         count = question_set.question_count or 3
         types = question_set.question_types or ["choice"]
         difficulty = question_set.difficulty or "medium"
@@ -397,7 +414,6 @@ def _generate_questions_background(set_id: int):
 
 请根据以上知识库内容出题。"""
 
-        # 3. 调用 LLM
         logger.info(f"题目集 {set_id} 开始生成题目: count={count}")
         llm_response = chat_block(
             messages=[{"role": "user", "content": user_message}],
@@ -410,7 +426,6 @@ def _generate_questions_background(set_id: int):
             logger.error(f"题目集 {set_id} LLM 返回空")
             return
 
-        # 4. 解析题目
         questions = _parse_questions(llm_response)
         if not questions:
             question_set.status = "error"
@@ -418,7 +433,6 @@ def _generate_questions_background(set_id: int):
             logger.error(f"题目集 {set_id} 解析失败")
             return
 
-        # 5. 存入数据库
         for i, q_data in enumerate(questions):
             q = Question(
                 set_id=set_id,
@@ -481,12 +495,10 @@ def _parse_questions(response: str) -> list:
     if not response:
         return []
     try:
-        # 尝试直接解析
         return json.loads(response)
     except:
         pass
     try:
-        # 尝试提取 JSON 块
         match = re.search(r'\[.*\]', response, re.DOTALL)
         if match:
             return json.loads(match.group())

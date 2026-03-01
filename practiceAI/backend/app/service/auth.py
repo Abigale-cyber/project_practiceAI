@@ -1,9 +1,26 @@
+"""
+认证依赖 —— 提供 FastAPI Depends 注入的当前用户信息
+
+使用方法：
+    from service.auth import get_current_user, require_admin
+    
+    @router.get("/")
+    async def my_route(current_user: dict = Depends(get_current_user)):
+        user_id = current_user["user_id"]
+        ...
+    
+    @router.get("/admin-only")
+    async def admin_route(current_user: dict = Depends(require_admin)):
+        ...
+"""
+
 from utils.database import get_db, SessionLocal
 from models.user import User
 from utils.password import verify_password
 from sqlalchemy.exc import SQLAlchemyError
 from exceptions.auth import AuthError
 from fastapi_jwt import JwtAccessBearerCookie
+from fastapi import Depends, HTTPException, status
 import secrets
 from datetime import timedelta
 import os
@@ -73,3 +90,37 @@ def register_user(username: str, password: str):
         raise AuthError(f"注册失败: {str(e)}")
     finally:
         db.close()
+
+
+# ==================== 认证依赖（Depends）====================
+
+async def get_current_user(credentials=Depends(access_security)) -> dict:
+    """
+    从 JWT token 中提取当前用户信息。
+    
+    返回: {"user_id": int, "user_name": str, "role": str}
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未提供有效的认证凭证",
+        )
+    subject = credentials.subject
+    if not isinstance(subject, dict) or "user_id" not in subject:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的 Token 格式",
+        )
+    return subject
+
+
+async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    要求当前用户必须是管理员角色。
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限",
+        )
+    return current_user

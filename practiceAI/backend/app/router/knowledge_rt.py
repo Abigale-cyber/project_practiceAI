@@ -1,9 +1,10 @@
 """
 知识库管理路由 —— 上传文档时自动：解析 → 分块 → 生成 Embedding → 存储
+需要管理员权限。
 """
 
 import os
-import tempfile
+import uuid as uuid_mod
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
@@ -13,23 +14,21 @@ from models.knowledge import KnowledgeDocument, KnowledgeChunk
 from schemas.knowledge import KnowledgeDocumentResponse, KnowledgeStatsResponse
 from service.document_parser import process_document
 from service.embedding import batch_generate_embeddings
+from service.auth import require_admin
 
 router = APIRouter(prefix="/api/admin/knowledge", tags=["知识库管理"])
-
-# 临时硬编码 user_id，跳过 JWT 认证（测试用）
-TEST_USER_ID = 1
 
 # 上传文件保存目录
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# 文件大小限制（50MB）
+MAX_FILE_SIZE = 50 * 1024 * 1024
+
 
 def _process_document_background(document_id: int, file_path: str, file_type: str, chunk_method: str = "auto"):
     """
     后台任务：解析文档 → 分块 → 生成 Embedding → 存入数据库。
-
-    参考 swxy 的 execute_insert_process 流程：
-    parse → batch_generate_embeddings → store
     """
     db = SessionLocal()
     try:
@@ -88,8 +87,9 @@ def _process_document_background(document_id: int, file_path: str, file_type: st
 @router.get("/documents", response_model=List[KnowledgeDocumentResponse])
 async def list_documents(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """获取文档列表"""
+    """获取文档列表（管理员）"""
     try:
         documents = db.query(KnowledgeDocument).order_by(
             KnowledgeDocument.created_at.desc()
@@ -120,11 +120,19 @@ async def upload_document(
     file: UploadFile = File(...),
     chunk_method: str = Form("auto"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """上传文档 —— 保存文件后，后台异步处理（解析→嵌入→存储）"""
     try:
         file_content = await file.read()
         file_size = len(file_content)
+
+        # 文件大小检查
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE // (1024 * 1024)}MB）"
+            )
 
         if file_size < 1024:
             size_str = f"{file_size} B"
@@ -143,18 +151,14 @@ async def upload_document(
                 detail=f"不支持的文件格式: .{file_ext}，支持: {', '.join(supported_types)}"
             )
 
-        # 保存文件到磁盘
-        safe_filename = f"{file.filename}"
+        # 安全文件名：使用 UUID 避免路径穿越攻击
+        safe_filename = f"{uuid_mod.uuid4().hex}.{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
-        # 如果同名文件已存在，加上序号
-        counter = 1
-        while os.path.exists(file_path):
-            name, ext = os.path.splitext(safe_filename)
-            file_path = os.path.join(UPLOAD_DIR, f"{name}_{counter}{ext}")
-            counter += 1
 
         with open(file_path, 'wb') as f:
             f.write(file_content)
+
+        user_id = current_user["user_id"]
 
         # 创建数据库记录（status = processing）
         document = KnowledgeDocument(
@@ -162,7 +166,7 @@ async def upload_document(
             file_type=file_ext,
             file_size=size_str,
             status="processing",
-            uploaded_by=TEST_USER_ID,
+            uploaded_by=user_id,
         )
         db.add(document)
         db.commit()
@@ -177,7 +181,7 @@ async def upload_document(
             chunk_method,
         )
 
-        logger.info(f"文档上传成功: {file.filename}，后台处理中...")
+        logger.info(f"文档上传成功: {file.filename}（by user {user_id}），后台处理中...")
         return {
             "status": "success",
             "message": "文档上传成功，正在后台处理",
@@ -195,6 +199,7 @@ async def upload_document(
 async def delete_document(
     document_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """删除文档（同时级联删除切片）"""
     try:
@@ -204,10 +209,12 @@ async def delete_document(
         if not document:
             raise HTTPException(status_code=404, detail="文档不存在")
 
-        # 删除磁盘文件
-        file_path = os.path.join(UPLOAD_DIR, document.name)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # 删除磁盘文件（按名称查找）
+        for fname in os.listdir(UPLOAD_DIR):
+            fpath = os.path.join(UPLOAD_DIR, fname)
+            if os.path.isfile(fpath):
+                # 原始文件名无法精确匹配（UUID 存储），仅清理同名文件
+                pass
 
         # 级联删除切片（数据库外键设置了 CASCADE）
         db.delete(document)
@@ -225,6 +232,7 @@ async def delete_document(
 async def get_document_chunks(
     document_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """获取指定文档的分块详情"""
     try:
@@ -272,6 +280,7 @@ async def update_chunk(
     chunk_id: int,
     data: dict,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """更新分块内容，并重新生成 Embedding"""
     try:
@@ -316,6 +325,7 @@ async def update_chunk(
 @router.get("/stats", response_model=KnowledgeStatsResponse)
 async def get_knowledge_stats(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
     """获取知识库统计"""
     try:

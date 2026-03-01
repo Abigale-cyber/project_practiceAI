@@ -6,21 +6,21 @@ from utils import logger
 from models.practice import PracticeSession, PracticeAnswer
 from models.chat import ChatSession
 from models.question import Question
+from service.auth import get_current_user
 
 router = APIRouter(prefix="/api/history", tags=["历史记录"])
-
-# 临时硬编码 user_id，跳过 JWT 认证（测试用）
-TEST_USER_ID = 1
 
 
 @router.get("/practice")
 async def get_practice_history(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取练习历史列表"""
     try:
+        user_id = current_user["user_id"]
         sessions = db.query(PracticeSession).filter(
-            PracticeSession.user_id == TEST_USER_ID
+            PracticeSession.user_id == user_id
         ).order_by(PracticeSession.created_at.desc()).all()
 
         return [
@@ -45,6 +45,7 @@ async def get_practice_history(
 async def get_practice_detail(
     session_id: int,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取某次练习详情"""
     try:
@@ -85,11 +86,13 @@ async def get_practice_detail(
 @router.get("/chat")
 async def get_chat_history(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取问答历史列表"""
     try:
+        user_id = current_user["user_id"]
         sessions = db.query(ChatSession).filter(
-            ChatSession.user_id == TEST_USER_ID
+            ChatSession.user_id == user_id
         ).order_by(ChatSession.updated_at.desc()).all()
 
         return [
@@ -109,20 +112,23 @@ async def get_chat_history(
 @router.get("/stats")
 async def get_student_stats(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取学员统计摘要"""
     try:
+        user_id = current_user["user_id"]
+
         practice_count = db.query(PracticeSession).filter(
-            PracticeSession.user_id == TEST_USER_ID
+            PracticeSession.user_id == user_id
         ).count()
 
         avg_score = db.query(sql_func.avg(PracticeSession.score)).filter(
-            PracticeSession.user_id == TEST_USER_ID,
+            PracticeSession.user_id == user_id,
             PracticeSession.score > 0,
         ).scalar() or 0
 
         chat_count = db.query(ChatSession).filter(
-            ChatSession.user_id == TEST_USER_ID
+            ChatSession.user_id == user_id
         ).count()
 
         return {

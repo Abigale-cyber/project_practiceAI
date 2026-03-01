@@ -7,6 +7,7 @@ from models.user import User
 from models.question import Question
 from models.knowledge import KnowledgeDocument
 from models.practice import PracticeSession
+from service.auth import require_admin
 
 router = APIRouter(prefix="/api/admin/dashboard", tags=["管理概览"])
 
@@ -14,8 +15,9 @@ router = APIRouter(prefix="/api/admin/dashboard", tags=["管理概览"])
 @router.get("/stats")
 async def get_dashboard_stats(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """获取概览统计"""
+    """获取概览统计（管理员）"""
     try:
         student_count = db.query(User).filter(User.role == "student").count()
         question_count = db.query(Question).count()
@@ -42,8 +44,9 @@ async def get_dashboard_stats(
 async def get_recent_activities(
     limit: int = 10,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """获取最近活动"""
+    """获取最近活动（管理员）"""
     try:
         sessions = db.query(PracticeSession).order_by(
             PracticeSession.created_at.desc()
@@ -70,8 +73,9 @@ async def get_recent_activities(
 async def get_popular_questions(
     limit: int = 5,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """获取热门问题（最多被练习的）"""
+    """获取热门问题（管理员）"""
     try:
         from models.practice import PracticeAnswer
 

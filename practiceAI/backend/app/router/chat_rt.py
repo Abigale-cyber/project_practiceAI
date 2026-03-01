@@ -18,6 +18,7 @@ from schemas.chat import ChatRequest, ChatSessionResponse, ChatMessageResponse, 
 from service.llm import chat_stream, generate_session_title
 from service.rag import retrieve_relevant_chunks, build_rag_prompt, format_citations
 from service.document_parser import parse_document
+from service.auth import get_current_user
 from typing import List
 import uuid
 import json
@@ -27,21 +28,20 @@ import os
 
 router = APIRouter(prefix="/api/chat", tags=["智能问答"])
 
-# 临时硬编码 user_id，跳过 JWT 认证（测试用）
-TEST_USER_ID = 1
-
 
 @router.post("/sessions", response_model=ChatSessionResponse)
 async def create_session(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """创建问答会话"""
     try:
         session_id = str(uuid.uuid4()).replace("-", "")[:16]
+        user_id = current_user["user_id"]
 
         session = ChatSession(
             id=session_id,
-            user_id=TEST_USER_ID,
+            user_id=user_id,
             title="新会话",
         )
         db.add(session)
@@ -61,11 +61,13 @@ async def create_session(
 @router.get("/sessions", response_model=List[ChatSessionListItem])
 async def list_sessions(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取会话列表"""
     try:
+        user_id = current_user["user_id"]
         sessions = db.query(ChatSession).filter(
-            ChatSession.user_id == TEST_USER_ID
+            ChatSession.user_id == user_id
         ).order_by(ChatSession.updated_at.desc()).all()
 
         return [
@@ -83,7 +85,10 @@ async def list_sessions(
 
 
 @router.post("/parse-file")
-async def parse_temp_file(file: UploadFile = File(...)):
+async def parse_temp_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
     """解析临时文件，提取文本内容（不存储）"""
     try:
         file_ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename else ""
@@ -123,9 +128,12 @@ async def send_message(
     session_id: str,
     request: ChatRequest = Body(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """发送消息（SSE 流式响应，接入 RAG + 大模型）"""
     try:
+        user_id = current_user["user_id"]
+
         # 保存用户消息
         user_msg = ChatMessage(
             session_id=session_id,
@@ -290,6 +298,7 @@ async def send_message(
 async def get_messages(
     session_id: str,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """获取会话历史消息"""
     try:
@@ -320,6 +329,7 @@ async def rename_session(
     session_id: str,
     data: dict = Body(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """重命名会话标题"""
     try:
@@ -340,6 +350,7 @@ async def rename_session(
 async def delete_session(
     session_id: str,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """删除会话及其所有消息"""
     try:

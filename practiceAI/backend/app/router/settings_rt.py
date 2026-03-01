@@ -4,17 +4,17 @@ from utils.database import get_db
 from utils import logger
 from models.settings import PracticeSettings
 from schemas.settings import PracticeSettingsResponse, PracticeSettingsUpdate
+from service.auth import require_admin
 
 router = APIRouter(prefix="/api/admin/settings", tags=["系统设置"])
-
-TEST_USER_ID = 1
 
 
 @router.get("/", response_model=PracticeSettingsResponse)
 async def get_settings(
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """获取系统设置"""
+    """获取系统设置（管理员）"""
     try:
         settings = db.query(PracticeSettings).filter(PracticeSettings.id == 1).first()
         if not settings:
@@ -46,9 +46,12 @@ async def get_settings(
 async def update_settings(
     data: PracticeSettingsUpdate,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
 ):
-    """更新系统设置"""
+    """更新系统设置（管理员）"""
     try:
+        user_id = current_user["user_id"]
+
         settings = db.query(PracticeSettings).filter(PracticeSettings.id == 1).first()
         if not settings:
             settings = PracticeSettings(id=1)
@@ -57,7 +60,7 @@ async def update_settings(
         update_data = data.dict(exclude_unset=True)
         for key, value in update_data.items():
             setattr(settings, key, value)
-        settings.updated_by = TEST_USER_ID
+        settings.updated_by = user_id
 
         db.commit()
         db.refresh(settings)
