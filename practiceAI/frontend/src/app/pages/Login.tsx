@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router';
 import { GraduationCap, Shield, ArrowLeft, Sparkles, BookOpen } from 'lucide-react';
+import { toast } from 'sonner';
 
 type RoleMode = null | 'student' | 'admin';
 type FormMode = 'login' | 'register';
@@ -32,8 +33,10 @@ export default function Login() {
             if (formMode === 'register') {
                 await register(username, password);
                 await login(username, password);
+                toast.success('🎉 注册并登录成功！');
             } else {
                 await login(username, password);
+                toast.success(roleMode === 'admin' ? '✅ 教师登录成功，欢迎回来！' : '✅ 登录成功，开始学习吧！');
             }
             // login 成功后 useEffect 会自动跳转
         } catch (err: any) {
