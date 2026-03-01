@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_documents_uploaded_by ON knowledge_documents(uploaded_by);
 
--- 题库表
-CREATE TABLE IF NOT EXISTS questions (
+-- 手工题库表
+CREATE TABLE IF NOT EXISTS static_questions (
     id SERIAL PRIMARY KEY,
     type VARCHAR(20) NOT NULL,
     question TEXT NOT NULL,
@@ -41,8 +41,39 @@ CREATE TABLE IF NOT EXISTS questions (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_questions_category ON questions(category);
-CREATE INDEX IF NOT EXISTS idx_questions_type ON questions(type);
+CREATE INDEX IF NOT EXISTS idx_static_questions_category ON static_questions(category);
+CREATE INDEX IF NOT EXISTS idx_static_questions_type ON static_questions(type);
+
+-- 题目集表
+CREATE TABLE IF NOT EXISTS question_sets (
+    id SERIAL PRIMARY KEY,
+    topic_name VARCHAR(255) NOT NULL,
+    knowledge_base_id VARCHAR(100),
+    knowledge_base_name VARCHAR(255),
+    question_count INTEGER DEFAULT 3,
+    question_types JSONB DEFAULT '["choice"]',
+    difficulty VARCHAR(20) DEFAULT 'medium',
+    focus JSONB DEFAULT '[]',
+    custom_instruction TEXT DEFAULT '',
+    status VARCHAR(20) DEFAULT 'draft',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 新的动态生成题目表
+CREATE TABLE IF NOT EXISTS questions (
+    id SERIAL PRIMARY KEY,
+    set_id INTEGER REFERENCES question_sets(id) ON DELETE CASCADE,
+    question_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    options JSONB,
+    answer TEXT NOT NULL,
+    explanation TEXT DEFAULT '',
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- 练习记录表
 CREATE TABLE IF NOT EXISTS practice_sessions (
@@ -100,14 +131,23 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session
 -- 练习配置表
 CREATE TABLE IF NOT EXISTS practice_settings (
     id SERIAL PRIMARY KEY,
-    knowledge_base VARCHAR(50) DEFAULT 'all',
+    quiz_topics JSONB DEFAULT '[]',
+    question_count INTEGER DEFAULT 5,
     question_types JSONB DEFAULT '["choice", "essay"]',
-    question_count INTEGER DEFAULT 10,
+    quiz_difficulty VARCHAR(20) DEFAULT 'medium',
+    quiz_focus JSONB DEFAULT '["concept", "compare", "apply", "process"]',
+    quiz_custom_instruction TEXT DEFAULT '',
+    grading_strictness VARCHAR(20) DEFAULT 'medium',
+    grading_style VARCHAR(20) DEFAULT 'encouraging',
+    passing_score INTEGER DEFAULT 60,
+    show_answer BOOLEAN DEFAULT true,
+    grading_custom_instruction TEXT DEFAULT '',
+    time_limit INTEGER DEFAULT 0,
+    question_source VARCHAR(20) DEFAULT 'ai_generated',
+    knowledge_base VARCHAR(50) DEFAULT 'all',
     difficulty VARCHAR(20) DEFAULT 'all',
     random_order BOOLEAN DEFAULT true,
     show_explanation BOOLEAN DEFAULT true,
-    time_limit INTEGER DEFAULT 0,
-    passing_score INTEGER DEFAULT 60,
     updated_by INTEGER REFERENCES users(id),
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

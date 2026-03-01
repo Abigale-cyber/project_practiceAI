@@ -25,6 +25,7 @@ class PracticeSettingsResponse(BaseModel):
 
     # 通用设置
     time_limit: int = 0
+    question_source: str = "ai_generated"
 
     class Config:
         from_attributes = True
@@ -44,3 +45,4 @@ class PracticeSettingsUpdate(BaseModel):
     grading_custom_instruction: Optional[str] = None
 
     time_limit: Optional[int] = None
+    question_source: Optional[str] = None

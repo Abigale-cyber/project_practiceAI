@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router';
-import { LayoutDashboard, Database, Settings, ArrowLeft, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Database, Settings, ArrowLeft, LogOut, User, ListTodo } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
 export default function AdminLayout() {
@@ -16,6 +16,7 @@ export default function AdminLayout() {
     { path: '/admin', label: '数 据 总 览', icon: LayoutDashboard, colors: 'bg-[#FDE047] text-black border-black' },
     { path: '/admin/knowledge', label: '知 识 管 理', icon: Database, colors: 'bg-[#F9A8D4] text-black border-black' },
     { path: '/admin/settings', label: '题 目 配 置', icon: Settings, colors: 'bg-[#2563EB] text-white border-black' },
+    { path: '/admin/questions', label: '手 工 题 库', icon: ListTodo, colors: 'bg-[#FDE047] text-black border-black' },
   ];
 
   return (

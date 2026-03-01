@@ -168,6 +168,32 @@ export const questionSetApi = {
         request(`/api/admin/questions/questions/${questionId}`, { method: 'DELETE' }),
 };
 
+// ===== 手工题库 API =====
+export const staticQuestionApi = {
+    list: (params?: { category?: string; type?: string; search?: string }) => {
+        const query = new URLSearchParams();
+        if (params?.category) query.append('category', params.category);
+        if (params?.type) query.append('type', params.type);
+        if (params?.search) query.append('search', params.search);
+        return request<any[]>(`/api/admin/static-questions?${query.toString()}`);
+    },
+
+    create: (data: any) =>
+        request<any>('/api/admin/static-questions', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    update: (id: number, data: any) =>
+        request<any>(`/api/admin/static-questions/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+
+    delete: (id: number) =>
+        request(`/api/admin/static-questions/${id}`, { method: 'DELETE' }),
+};
+
 // ===== 练习 API =====
 export const practiceApi = {
     getKnowledgeBases: () =>

@@ -4,11 +4,14 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import func
 from typing import List, Optional
 from utils.database import get_db
 from utils import logger
 from models.practice import PracticeSession, PracticeAnswer
 from models.knowledge import KnowledgeDocument, KnowledgeChunk
+from models.settings import PracticeSettings
+from models.static_question import StaticQuestion
 from schemas.practice import (
     StartPracticeRequest,
     SubmitAnswerRequest,
@@ -164,52 +167,76 @@ async def start_practice(
     try:
         user_id = current_user["user_id"]
 
-        # 1. 从知识库获取内容
-        knowledge_content = _get_knowledge_content(data.knowledge_base, db)
-
-        if not knowledge_content:
-            raise HTTPException(
-                status_code=400,
-                detail="知识库中暂无可用内容，请先上传文档"
-            )
-
-        # 2. 确定出题数量和类型
+        # 获取配置，判断出题方式
+        settings = db.query(PracticeSettings).first()
+        question_source = settings.question_source if settings else "ai_generated"
         question_count = data.question_count or 5
         question_type = data.question_type or "all"
 
-        type_instruction = ""
-        if question_type == "choice":
-            type_instruction = f"请生成 {question_count} 道选择题。"
-        elif question_type == "essay":
-            type_instruction = f"请生成 {question_count} 道问答题。"
+        if question_source == "static_bank":
+            # 题库随机抽题
+            logger.info(f"从手工题库随机抽题: count={question_count}, type={question_type}")
+            query = db.query(StaticQuestion)
+            if question_type != "all":
+                query = query.filter(StaticQuestion.type == question_type)
+            
+            static_questions = query.order_by(func.random()).limit(question_count).all()
+            if not static_questions:
+                raise HTTPException(status_code=400, detail="题库中题目不足，请先在系统配置中添加手工题库，或切换为[AI 即时出题]")
+            
+            questions = []
+            for sq in static_questions:
+                questions.append({
+                    "type": sq.type,
+                    "question": sq.question,
+                    "options": sq.options,
+                    "correct_answer": sq.correct_answer,
+                    "explanation": sq.explanation
+                })
         else:
-            choice_count = max(1, question_count * 3 // 5)
-            essay_count = question_count - choice_count
-            type_instruction = f"请生成 {choice_count} 道选择题和 {essay_count} 道问答题，共 {question_count} 道题。"
+            # AI 智能生成题目
+            knowledge_content = _get_knowledge_content(data.knowledge_base, db)
 
-        # 3. 调用 LLM 生成题目
-        logger.info(f"开始智能出题: count={question_count}, type={question_type}, user={user_id}")
+            if not knowledge_content:
+                raise HTTPException(
+                    status_code=400,
+                    detail="知识库中暂无可用内容，请先上传文档"
+                )
 
-        user_message = f"""{type_instruction}
+            # 2. 确定出题数量和类型
+            type_instruction = ""
+            if question_type == "choice":
+                type_instruction = f"请生成 {question_count} 道选择题。"
+            elif question_type == "essay":
+                type_instruction = f"请生成 {question_count} 道问答题。"
+            else:
+                choice_count = max(1, question_count * 3 // 5)
+                essay_count = question_count - choice_count
+                type_instruction = f"请生成 {choice_count} 道选择题和 {essay_count} 道问答题，共 {question_count} 道题。"
+
+            # 3. 调用 LLM 生成题目
+            logger.info(f"开始智能出题: count={question_count}, type={question_type}, user={user_id}")
+
+            user_message = f"""{type_instruction}
 
 【知识库内容】:
 {knowledge_content}
 
 请根据以上知识库内容出题。"""
 
-        llm_response = chat_block(
-            messages=[{"role": "user", "content": user_message}],
-            system_prompt=QUESTION_GENERATION_PROMPT,
-        )
-
-        # 4. 解析 LLM 返回的题目
-        questions = _parse_questions(llm_response)
-
-        if not questions:
-            raise HTTPException(
-                status_code=500,
-                detail="AI 出题失败，请重试"
+            llm_response = chat_block(
+                messages=[{"role": "user", "content": user_message}],
+                system_prompt=QUESTION_GENERATION_PROMPT,
             )
+
+            # 4. 解析 LLM 返回的题目
+            questions = _parse_questions(llm_response)
+
+            if not questions:
+                raise HTTPException(
+                    status_code=500,
+                    detail="AI 出题失败，请重试"
+                )
 
         # 5. 创建练习会话
         session = PracticeSession(

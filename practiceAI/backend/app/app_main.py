@@ -9,6 +9,7 @@ from router import practice_rt
 from router import chat_rt
 from router import history_rt
 from router import admin_rt
+from router import static_question_rt
 import os
 
 # 从环境变量获取 root_path
@@ -73,6 +74,7 @@ app.include_router(practice_rt.router)
 app.include_router(chat_rt.router)
 app.include_router(history_rt.router)
 app.include_router(admin_rt.router)
+app.include_router(static_question_rt.router)
 
 if __name__ == "__main__":
     import uvicorn

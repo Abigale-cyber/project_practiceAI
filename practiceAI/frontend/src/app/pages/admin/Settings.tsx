@@ -80,6 +80,7 @@ export default function AdminSettings() {
     showAnswer: true,
     gradingCustomInstruction: '',
     timeLimit: 0,
+    questionSource: 'ai_generated',
   });
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function AdminSettings() {
           showAnswer: settings.show_answer ?? true,
           gradingCustomInstruction: settings.grading_custom_instruction ?? '',
           timeLimit: settings.time_limit ?? 0,
+          questionSource: settings.question_source ?? 'ai_generated',
         });
       }
     } catch { /* ignore */ } finally {
@@ -145,6 +147,7 @@ export default function AdminSettings() {
         show_answer: gradingSettings.showAnswer,
         grading_custom_instruction: gradingSettings.gradingCustomInstruction,
         time_limit: gradingSettings.timeLimit,
+        question_source: gradingSettings.questionSource,
       });
       if (view === 'edit' && editSetId) {
         // 编辑模式：更新配置并重新生成题目
@@ -310,6 +313,7 @@ export default function AdminSettings() {
         show_answer: gradingSettings.showAnswer,
         grading_custom_instruction: gradingSettings.gradingCustomInstruction,
         time_limit: gradingSettings.timeLimit,
+        question_source: gradingSettings.questionSource,
       });
       toast.success('配置成功！');
     } catch (err: any) {
@@ -726,6 +730,27 @@ export default function AdminSettings() {
                   >
                     <div className="font-medium text-foreground mb-1">{level.label}</div>
                     <div className="text-xs text-muted-foreground">{level.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 出题方式 */}
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h3 className="text-base font-semibold mb-1 text-foreground">出题方式</h3>
+              <p className="text-sm text-muted-foreground mb-4">决定题目是基于大模型即时生成，还是从固定题库提取</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { id: 'ai_generated', label: '✨ AI 即时出题', desc: '根据知识库文档，AI 当场生成新题目' },
+                  { id: 'static_bank', label: '🗄️ 传统手工题库', desc: '从你在后台上传的固定题库里随机抽取' },
+                ].map(style => (
+                  <button
+                    key={style.id}
+                    onClick={() => setGradingSettings(s => ({ ...s, questionSource: style.id }))}
+                    className={`p-4 rounded-lg border-2 text-left transition-all cursor-pointer ${gradingSettings.questionSource === style.id ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground'}`}
+                  >
+                    <div className="font-medium text-foreground mb-1">{style.label}</div>
+                    <div className="text-xs text-muted-foreground">{style.desc}</div>
                   </button>
                 ))}
               </div>

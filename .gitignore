@@ -43,3 +43,5 @@ frontend.log
 *.sqlite3
 backend/app/.env
 backend/.env
+practiceAI/backend/app/uploads/
+*.rdb

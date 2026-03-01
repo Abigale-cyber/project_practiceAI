@@ -23,6 +23,7 @@ class PracticeSettings(Base):
 
     # ===== 通用设置 =====
     time_limit = Column(Integer, default=0)                # 答题时限(分钟)
+    question_source = Column(String(20), default='ai_generated') # ai_generated 或 static_bank
 
     # ===== 旧字段保留兼容 =====
     knowledge_base = Column(String(50), default='all')

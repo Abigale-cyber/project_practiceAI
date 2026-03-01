@@ -9,6 +9,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminKnowledge from "./pages/admin/Knowledge";
 import DocumentChunks from "./pages/admin/DocumentChunks";
 import AdminSettings from "./pages/admin/Settings";
+import AdminQuestions from "./pages/admin/Questions";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { createElement } from "react";
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
       { index: true, Component: AdminDashboard },
       { path: "knowledge", Component: AdminKnowledge },
       { path: "knowledge/:documentId/chunks", Component: DocumentChunks },
+      { path: "questions", Component: AdminQuestions },
       { path: "settings", Component: AdminSettings },
     ],
   },

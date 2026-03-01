@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
-import { questionApi } from '../../api';
+import { staticQuestionApi } from '../../api';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Question {
@@ -34,7 +34,7 @@ export default function AdminQuestions() {
       if (selectedCategory !== 'all') params.category = selectedCategory;
       if (selectedType !== 'all') params.type = selectedType;
       if (searchQuery) params.search = searchQuery;
-      const data = await questionApi.list(params);
+      const data = await staticQuestionApi.list(params);
       setQuestions(data);
     } catch (err: any) {
       toast.error(err.message || '加载失败');
@@ -56,7 +56,7 @@ export default function AdminQuestions() {
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return;
     try {
-      await questionApi.delete(confirmDeleteId);
+      await staticQuestionApi.delete(confirmDeleteId);
       setQuestions((prev) => prev.filter((q) => q.id !== confirmDeleteId));
       toast.success('题目已删除');
     } catch (err: any) {
@@ -100,10 +100,10 @@ export default function AdminQuestions() {
         }
 
         if (isEditing && editingQuestion) {
-          await questionApi.update(editingQuestion.id, payload);
+          await staticQuestionApi.update(editingQuestion.id, payload);
           toast.success('题目已更新');
         } else {
-          await questionApi.create(payload);
+          await staticQuestionApi.create(payload);
           toast.success('题目已添加');
         }
         setIsModalOpen(false);
