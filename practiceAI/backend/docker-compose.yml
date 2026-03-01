@@ -1,43 +1,171 @@
 version: '3.8'
+
 services:
+  # ==================== PostgreSQL ====================
+  practice_postgres:
+    image: postgres:16-alpine
+    container_name: practice_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-practiceai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-practiceai_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-practice_ai}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - practice_pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-practiceai} -d ${POSTGRES_DB:-practice_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - practice_network
+
+  # ==================== Redis ====================
+  practice_redis:
+    image: redis:7-alpine
+    container_name: practice_redis
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - practice_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - practice_network
+
+  # ==================== Milvus（向量数据库）====================
+  # Milvus standalone 模式依赖 etcd 和 MinIO
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: practice_etcd
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    volumes:
+      - practice_etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - practice_network
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: practice_minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+    volumes:
+      - practice_minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - practice_network
+
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    container_name: practice_milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "9091:9091"
+    volumes:
+      - practice_milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - practice_network
+
+  # ==================== 后端 API ====================
   practice_api:
     build:
       context: ./app
       dockerfile: Dockerfile
-    hostname: practice_api
     container_name: practice_api
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-practiceai}:${POSTGRES_PASSWORD:-practiceai_pass}@practice_postgres:5432/${POSTGRES_DB:-practice_ai}
       - REDIS_HOST=practice_redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - ROOT_PATH=http://localhost:8001
-    env_file:
-      - .env
+      - MILVUS_HOST=practice_milvus
+      - MILVUS_PORT=19530
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-to-a-strong-random-key}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.siliconflow.cn/v1}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-ai/DeepSeek-R1-Distill-Qwen-14B}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-BAAI/bge-m3}
     ports:
-      - "8001:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
-      - ./app:/app/app
-    command: [ "uvicorn", "app_main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
+      - practice_uploads:/app/uploads
+    command: >
+      uvicorn app_main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers ${UVICORN_WORKERS:-2}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
     depends_on:
-      - practice_redis
-    networks:
-      - practice_network
-
-  practice_redis:
-    container_name: practice_redis
-    image: redis:7-alpine
-    ports:
-      - "6380:6379"
-    volumes:
-      - practice_redis_data:/data
-    restart: unless-stopped
+      practice_postgres:
+        condition: service_healthy
+      practice_redis:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
     networks:
       - practice_network
 
 volumes:
+  practice_pg_data:
+    driver: local
   practice_redis_data:
+    driver: local
+  practice_etcd_data:
+    driver: local
+  practice_minio_data:
+    driver: local
+  practice_milvus_data:
+    driver: local
+  practice_uploads:
     driver: local
 
 networks:

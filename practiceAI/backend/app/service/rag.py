@@ -1,16 +1,24 @@
 """
-RAG 检索服务 —— 从知识库中检索相关内容
+RAG (Retrieval-Augmented Generation) 检索增强生成
 
-参考 swxy/backend/app/service/core/retrieval.py 和 chat.py，
-使用 numpy 余弦相似度替代 Elasticsearch 混合检索。
+检索策略：
+1. 优先使用 Milvus 向量数据库进行近邻搜索（高性能）
+2. 降级策略：Milvus 不可用时回退到 PostgreSQL 全表扫描（兼容模式）
+
+流程：
+1. 将用户问题转为向量
+2. 从向量数据库中检索最相似的文档块
+3. 构建带知识库上下文的 LLM Prompt
 """
 
-import numpy as np
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
-from models.knowledge import KnowledgeChunk, KnowledgeDocument
+from models.knowledge import KnowledgeDocument, KnowledgeChunk
 from service.embedding import generate_embedding, cosine_similarity
-from utils import logger
+from service.prompts import build_chat_prompt
+import logging
+
+logger = logging.getLogger("practiceAI")
 
 
 def retrieve_relevant_chunks(
@@ -21,110 +29,193 @@ def retrieve_relevant_chunks(
     document_ids: Optional[List[int]] = None,
 ) -> List[Dict]:
     """
-    根据用户问题检索最相关的知识库内容。
+    检索与问题最相关的文档块。
 
-    流程（参考 swxy 的 retrieve_content）：
-    1. 将用户问题转为向量
-    2. 从数据库加载所有已嵌入的 chunk
-    3. 计算余弦相似度
-    4. 返回 top-k 结果
+    优先走 Milvus 向量检索，Milvus 不可用时降级为 PostgreSQL 全表扫描。
 
-    :param question: 用户问题
-    :param db: 数据库会话
-    :param top_k: 返回最相关的 k 个结果
-    :param similarity_threshold: 相似度阈值
-    :param document_ids: 仅从指定文档中检索（None 则检索全部）
-    :return: [{"id": 1, "content": "...", "document_name": "...", "similarity": 0.85}]
+    :param question: 用户的问题
+    :param db: SQLAlchemy 数据库 session
+    :param top_k: 返回最相关的 N 个块
+    :param similarity_threshold: 最低相似度阈值
+    :param document_ids: 可选，限制检索范围的文档 ID 列表
+    :return: 排序后的匹配结果列表
     """
-    # 1. 生成问题向量
+    # 1. 生成问题的 embedding
     question_embedding = generate_embedding(question)
-    if question_embedding is None:
-        logger.error("无法为问题生成向量")
+    if not question_embedding:
+        logger.warning("问题向量化失败，跳过 RAG 检索")
         return []
 
-    # 2. 查询有 embedding 的 chunk（可按文档过滤）
-    query = db.query(KnowledgeChunk).filter(
-        KnowledgeChunk.embedding.isnot(None)
+    # 2. 尝试 Milvus 检索
+    results = _search_via_milvus(
+        question_embedding=question_embedding,
+        db=db,
+        top_k=top_k,
+        similarity_threshold=similarity_threshold,
+        document_ids=document_ids,
     )
-    if document_ids:
-        query = query.filter(KnowledgeChunk.document_id.in_(document_ids))
-        logger.info(f"RAG 限定检索文档 ID: {document_ids}")
-    chunks = query.all()
 
-    if not chunks:
-        logger.info("知识库中暂无已嵌入的文档")
-        return []
+    if results is not None:
+        return results
 
-    # 3. 计算相似度
-    similarities = []
-    for chunk in chunks:
-        if chunk.embedding:
+    # 3. 降级到 PostgreSQL 全表检索
+    logger.info("降级为 PostgreSQL 全表检索")
+    return _search_via_postgres(
+        question_embedding=question_embedding,
+        db=db,
+        top_k=top_k,
+        similarity_threshold=similarity_threshold,
+        document_ids=document_ids,
+    )
+
+
+def _search_via_milvus(
+    question_embedding: List[float],
+    db: Session,
+    top_k: int,
+    similarity_threshold: float,
+    document_ids: Optional[List[int]],
+) -> Optional[List[Dict]]:
+    """
+    通过 Milvus 进行向量搜索。
+
+    返回 None 表示 Milvus 不可用需降级。
+    """
+    try:
+        from service.milvus_service import is_available, search_similar
+
+        if not is_available():
+            return None  # 降级信号
+
+        # 向量近邻搜索
+        matches = search_similar(
+            query_embedding=question_embedding,
+            top_k=top_k,
+            similarity_threshold=similarity_threshold,
+            document_ids=document_ids,
+        )
+
+        if not matches:
+            return []
+
+        # 用 chunk_id 从 PostgreSQL 获取文本内容
+        chunk_ids = [m["chunk_id"] for m in matches]
+        chunks_db = db.query(KnowledgeChunk).filter(
+            KnowledgeChunk.id.in_(chunk_ids)
+        ).all()
+        chunk_map = {c.id: c for c in chunks_db}
+
+        results = []
+        for m in matches:
+            chunk = chunk_map.get(m["chunk_id"])
+            if not chunk:
+                continue
+
+            doc = db.query(KnowledgeDocument).filter(
+                KnowledgeDocument.id == chunk.document_id
+            ).first()
+
+            results.append({
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "document_name": doc.name if doc else "未知文档",
+                "content": chunk.content,
+                "similarity": m["score"],
+            })
+
+        logger.info(f"Milvus RAG 检索到 {len(results)} 条结果")
+        return results
+
+    except ImportError:
+        logger.warning("pymilvus 未安装，降级到 PostgreSQL")
+        return None
+    except Exception as e:
+        logger.warning(f"Milvus 检索异常: {e}，降级到 PostgreSQL")
+        return None
+
+
+def _search_via_postgres(
+    question_embedding: List[float],
+    db: Session,
+    top_k: int,
+    similarity_threshold: float,
+    document_ids: Optional[List[int]],
+) -> List[Dict]:
+    """
+    PostgreSQL 全表扫描检索（降级方案）。
+    将所有 chunk 的 embedding 拉到内存，在 Python 中计算余弦相似度。
+    """
+    try:
+        query = db.query(KnowledgeChunk).filter(KnowledgeChunk.embedding.isnot(None))
+
+        if document_ids:
+            query = query.filter(KnowledgeChunk.document_id.in_(document_ids))
+
+        chunks = query.all()
+        if not chunks:
+            return []
+
+        # 计算相似度
+        scored = []
+        for chunk in chunks:
+            if not chunk.embedding:
+                continue
             sim = cosine_similarity(question_embedding, chunk.embedding)
-            similarities.append((chunk, sim))
+            if sim >= similarity_threshold:
+                scored.append((chunk, sim))
 
-    # 4. 排序并取 top-k
-    similarities.sort(key=lambda x: x[1], reverse=True)
-    top_results = similarities[:top_k]
+        # 按相似度排序
+        scored.sort(key=lambda x: x[1], reverse=True)
+        top_matches = scored[:top_k]
 
-    # 5. 过滤低于阈值的结果并格式化（参考 swxy 的 extracted_data 格式）
-    results = []
-    for i, (chunk, sim) in enumerate(top_results):
-        if sim < similarity_threshold:
-            continue
+        results = []
+        for chunk, sim in top_matches:
+            doc = db.query(KnowledgeDocument).filter(
+                KnowledgeDocument.id == chunk.document_id
+            ).first()
+            results.append({
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "document_name": doc.name if doc else "未知文档",
+                "content": chunk.content,
+                "similarity": round(sim, 4),
+            })
 
-        # 获取文档名称
-        doc = db.query(KnowledgeDocument).filter(
-            KnowledgeDocument.id == chunk.document_id
-        ).first()
-        doc_name = doc.name if doc else "未知文档"
+        logger.info(f"PostgreSQL RAG 检索到 {len(results)} 条结果 (降级模式)")
+        return results
 
-        results.append({
-            "id": i + 1,
-            "document_id": chunk.document_id,
-            "document_name": doc_name,
-            "content": chunk.content,
-            "similarity": round(sim, 4),
-        })
-
-    logger.info(f"检索到 {len(results)} 条相关内容 (最高相似度: {results[0]['similarity'] if results else 0})")
-    return results
+    except Exception as e:
+        logger.error(f"PostgreSQL RAG 检索失败: {e}")
+        return []
 
 
 def build_rag_prompt(question: str, retrieved_content: List[Dict]) -> str:
     """
-    构建带有知识库上下文的提示词。
-
-    使用集中管理的 CHAT_SYSTEM_PROMPT（智能问答 Prompt）。
-
-    :param question: 用户问题
-    :param retrieved_content: 检索到的内容列表
-    :return: 完整的带上下文 prompt
+    构建 RAG Prompt（将检索结果注入到系统提示中）。
     """
-    from service.prompts import build_chat_prompt
-
     if not retrieved_content:
-        formatted_references = "暂无相关参考内容"
+        references = "（未检索到相关参考内容）"
     else:
-        refs = []
-        for ref in retrieved_content:
-            refs.append(f"[{ref['id']}] （来源：{ref['document_name']}）\n{ref['content']}")
-        formatted_references = "\n\n".join(refs)
+        ref_parts = []
+        for i, item in enumerate(retrieved_content, 1):
+            ref_parts.append(
+                f"[{i}] 来源: {item['document_name']}\n"
+                f"内容: {item['content']}\n"
+                f"相似度: {item['similarity']}"
+            )
+        references = "\n\n".join(ref_parts)
 
-    return build_chat_prompt(question, formatted_references)
+    return build_chat_prompt(question, references)
 
 
 def format_citations(retrieved_content: List[Dict]) -> List[Dict]:
-    """
-    将检索结果格式化为前端可展示的引用格式。
-
-    :param retrieved_content: 检索结果
-    :return: [{\"id\": 1, \"document_name\": \"...\", \"content\": \"...\"}]
-    """
-    return [
-        {
-            "id": ref["id"],
-            "document_name": ref["document_name"],
-            "content": ref["content"][:200] + "..." if len(ref["content"]) > 200 else ref["content"],
-        }
-        for ref in retrieved_content
-    ]
+    """格式化引用信息（返回给前端展示）"""
+    citations = []
+    for item in retrieved_content:
+        citations.append({
+            "id": item.get("chunk_id"),
+            "document_name": item.get("document_name", ""),
+            "content": item.get("content", "")[:200] + "..." if len(item.get("content", "")) > 200 else item.get("content", ""),
+            "similarity": item.get("similarity", 0),
+        })
+    return citations

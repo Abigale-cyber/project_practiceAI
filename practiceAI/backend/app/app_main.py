@@ -46,8 +46,15 @@ from utils.database import init_db
 
 @app.on_event("startup")
 def on_startup():
-    """应用启动时初始化数据库表"""
+    """应用启动时初始化数据库表和向量索引"""
     init_db()
+    # 初始化 Milvus 向量索引（失败不阻塞启动，降级到 PostgreSQL 检索）
+    try:
+        from service.milvus_service import init_collection
+        init_collection()
+    except Exception as e:
+        import logging
+        logging.getLogger("practiceAI").warning(f"Milvus 初始化失败（降级模式）: {e}")
 
 
 # 健康检查接口

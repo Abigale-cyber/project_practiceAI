@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     content TEXT NOT NULL,
     citations JSONB,
     suggested_questions JSONB,
+    attached_docs JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

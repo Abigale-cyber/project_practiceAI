@@ -68,6 +68,24 @@ def _process_document_background(document_id: int, file_path: str, file_type: st
             doc.chunk_count = len(chunks)
 
         db.commit()
+
+        # 5. 同步向量到 Milvus
+        try:
+            from service.milvus_service import insert_vectors, is_available
+            if is_available():
+                # 获取刚插入的 chunk IDs
+                inserted_chunks = db.query(KnowledgeChunk).filter(
+                    KnowledgeChunk.document_id == document_id
+                ).all()
+                chunk_ids = [c.id for c in inserted_chunks]
+                doc_ids = [c.document_id for c in inserted_chunks]
+                chunk_embeddings = [c.embedding for c in inserted_chunks if c.embedding]
+                if chunk_ids and chunk_embeddings and len(chunk_ids) == len(chunk_embeddings):
+                    insert_vectors(chunk_ids, doc_ids, chunk_embeddings)
+                    logger.info(f"文档 [{document_id}] 向量已同步到 Milvus")
+        except Exception as milvus_err:
+            logger.warning(f"Milvus 同步失败（不影响主流程）: {milvus_err}")
+
         logger.info(f"文档 [{document_id}] 处理完成，共 {len(chunks)} 个切片")
 
     except Exception as e:
@@ -215,6 +233,14 @@ async def delete_document(
             if os.path.isfile(fpath):
                 # 原始文件名无法精确匹配（UUID 存储），仅清理同名文件
                 pass
+
+        # 同步删除 Milvus 向量
+        try:
+            from service.milvus_service import delete_by_document, is_available
+            if is_available():
+                delete_by_document(document_id)
+        except Exception as milvus_err:
+            logger.warning(f"Milvus 删除失败: {milvus_err}")
 
         # 级联删除切片（数据库外键设置了 CASCADE）
         db.delete(document)
