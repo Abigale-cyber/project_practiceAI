@@ -11,7 +11,16 @@ interface Props {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false }: Props) {
-    const { isAuthenticated, isAdmin } = useAuth();
+    const { isAuthenticated, isAdmin, loading } = useAuth();
+
+    if (loading) {
+        // 让页面在检查 token 期间保持空白/加载态，避免被重定向
+        return (
+            <div className="min-h-screen bg-[#FFFDF5] flex items-center justify-center">
+                <div className="w-16 h-16 border-4 border-black border-t-[#2563EB] rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;

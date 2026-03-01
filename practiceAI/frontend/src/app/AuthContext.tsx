@@ -4,9 +4,17 @@ import { getToken, setToken, removeToken, authApi } from './api';
 // ===== 解析 JWT payload（无需 jwt-decode 库）=====
 function parseJwt(token: string): any {
     try {
-        const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-        return JSON.parse(atob(base64));
-    } catch {
+        let base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        const pad = base64.length % 4;
+        if (pad) {
+            base64 += '='.repeat(4 - pad);
+        }
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error('JWT decode error:', e);
         return null;
     }
 }
@@ -21,6 +29,7 @@ interface AuthContextType {
     user: AuthUser | null;
     isAuthenticated: boolean;
     isAdmin: boolean;
+    loading: boolean;
     login: (username: string, password: string) => Promise<void>;
     register: (username: string, password: string) => Promise<void>;
     logout: () => void;
@@ -30,6 +39,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         // 初始化时检查 token
@@ -40,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(payload.subject);
             }
         }
+        setLoading(false);
     }, []);
 
     const login = async (username: string, password: string) => {
@@ -66,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 user,
                 isAuthenticated: !!user,
                 isAdmin: user?.role === 'admin',
+                loading,
                 login,
                 register,
                 logout,
