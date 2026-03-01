@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_practice_sessions_user_id ON practice_sessions(us
 CREATE TABLE IF NOT EXISTS practice_answers (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES practice_sessions(id) ON DELETE CASCADE,
-    question_id INTEGER REFERENCES questions(id),
+    question_id INTEGER,
     user_answer TEXT,
     is_correct BOOLEAN,
     ai_feedback TEXT,
